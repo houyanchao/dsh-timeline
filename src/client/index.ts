@@ -69,7 +69,8 @@ export function apply(ctx: ClientContext): void {
       }),
     }, StarredPanel),
   )
-  // 提示词按钮（composer 工具行）+ 智能回车（随组件挂载）。
+  // 提示词按钮（浮在 composer 卡片左外侧）+ 智能回车（随组件挂载）
+  // （挂 composer 槽位借其会话页生命周期，按钮本体 portal 到 body）。
   ctx.slots.inject(
     'conversation.input.left',
     () => ctx.slots.register({

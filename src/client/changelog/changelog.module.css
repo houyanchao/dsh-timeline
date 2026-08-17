@@ -325,7 +325,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 原版与提示词按钮同尺寸（32px）；DSH composer 行内提示词按钮为 28px，保持两钮一致 */
+  /* 原版与提示词按钮同尺寸（32px）；DSH 下提示词按钮为 28px，保持两钮一致 */
   width: 28px;
   height: 28px;
   border: none;

@@ -1,12 +1,13 @@
 /**
  * 提示词按钮 + 下拉面板：移植原 PromptButtonManager + prompt-dropdown-ui。
- * 按钮坐在 DSH composer 工具行（conversation.input.left 槽位），
+ * 按钮浮在 composer 卡片左外侧、与卡片顶部对齐（原 _updatePosition 的 fixed 定位），
+ * 挂 conversation.input.left 槽位只为借会话页生命周期与输入框 store，本体 portal 到 body。
  * 点击弹出固定尺寸（320x400）向上展开的下拉：提示词 Tab（搜索/列表/空态）
  * + 常用设置 Tab（反馈、GitHub Star、AI 完成提醒、阻止跳底开关、换行发送设置）。
  * 点提示词把内容追加进输入框草稿（原 _defaultInsertText 的 textarea 分支）。
  * 同组件挂载智能回车（useSmartEnter）与发送后防跳底（usePreventAutoScroll）。
  */
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -34,6 +35,19 @@ const FEEDBACK_URL = 'https://github.com/houyanchao/chatgpt-gemini-timeline/issu
 /** composer 的 textarea（草稿插入后聚焦/滚动用）。 */
 const INPUT_SELECTOR = '[data-input-scroll] textarea'
 
+/** 定位参考元素：composer 卡片（对位原 DeepSeek 适配器的 .ds-scroll-area__gutters）。 */
+const CARD_SELECTOR = '[data-composer-card]'
+/** 卡片所在的 sticky 座位：状态条/统计行/队列 dock 等兄弟节点会挤动卡片，
+    这些变化不改卡片自身尺寸，只有观察这一层才能跟上（顺带覆盖侧栏折叠动画）。 */
+const SEAT_SELECTOR = '[data-composer-seat]'
+/** 按钮与卡片的间距（原 config.gap）。 */
+const CARD_GAP = 8
+/** 相对卡片左上角的微调（原 DeepSeek 适配器 getPromptButtonOffset）。 */
+const CARD_OFFSET_TOP = 10
+const CARD_OFFSET_LEFT = -2
+/** 视口边缘留白（原 _updatePosition 的边界检查）。 */
+const VIEWPORT_EDGE = 8
+
 function openExternalUrl(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
@@ -43,6 +57,93 @@ function appendPromptText(existingText: string, text: string): string {
   if (existingText.trim() === '') return `${text}\n\n`
   const cleanedText = existingText.replace(/\n+$/, '')
   return `${cleanedText}\n\n${text}\n\n`
+}
+
+/** 浮动容器的视口坐标。 */
+interface FloatPos {
+  readonly top: number
+  readonly left: number
+}
+
+/**
+ * 跟随 composer 卡片的浮动定位（原 PromptButtonManager._updatePosition）。
+ * 容器右端贴在卡片左外侧，故 Logo 按钮出现/消失时提示词按钮本身不移位。
+ * @param rowRef - 浮动容器，用于取自身尺寸做右端对齐与边界修正。
+ * @param enabled - 按钮是否启用（关闭时容器不渲染，需重建观察）。
+ * @returns 视口坐标；卡片不可见时为 null（对应原 _hideButton）。
+ */
+function useComposerAnchor(rowRef: RefObject<HTMLDivElement | null>, enabled: boolean): FloatPos | null {
+  const [pos, setPos] = useState<FloatPos | null>(null)
+
+  useLayoutEffect(() => {
+    if (!enabled) return
+
+    let card: HTMLElement | null = null
+    let seat: Element | null = null
+    let raf = 0
+    const observer = new ResizeObserver(() => { schedule() })
+
+    // 卡片随草稿换行长高、会话切换时也可能被换节点，故解析结果需可重绑。
+    function bindCard(): void {
+      const next = document.querySelector<HTMLElement>(CARD_SELECTOR)
+      if (next === card) return
+      if (card !== null) observer.unobserve(card)
+      if (seat !== null) observer.unobserve(seat)
+      card = next
+      seat = next?.closest(SEAT_SELECTOR) ?? null
+      if (card !== null) observer.observe(card)
+      if (seat !== null) observer.observe(seat)
+    }
+
+    function measure(): void {
+      if (card === null || !card.isConnected) bindCard()
+      if (card === null) { setPos(null); return }
+
+      const rect = card.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) { setPos(null); return }
+
+      const row = rowRef.current
+      const width = row?.offsetWidth ?? 0
+      const height = row?.offsetHeight ?? 0
+
+      const top = Math.max(
+        VIEWPORT_EDGE,
+        Math.min(rect.top + CARD_OFFSET_TOP, window.innerHeight - height - VIEWPORT_EDGE),
+      )
+      // 卡片左侧空间不足（窄视口下侧边留白仅 16px）时贴住视口左缘。
+      const left = Math.max(VIEWPORT_EDGE, rect.left + CARD_OFFSET_LEFT - CARD_GAP - width)
+      setPos(prev => prev !== null && prev.top === top && prev.left === left ? prev : { top, left })
+    }
+
+    function schedule(): void {
+      if (raf !== 0) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        measure()
+      })
+    }
+
+    // 容器自身尺寸也要观察：Logo 按钮出现时容器变宽，右端对齐需重算。
+    const row = rowRef.current
+    if (row !== null) observer.observe(row)
+    bindCard()
+    measure()
+
+    window.addEventListener('resize', schedule)
+    // 侧栏折叠等动画结束后卡片才落到终点位置（原 _transitionHandler）。
+    document.body.addEventListener('transitionend', schedule)
+
+    return () => {
+      if (raf !== 0) cancelAnimationFrame(raf)
+      observer.disconnect()
+      window.removeEventListener('resize', schedule)
+      document.body.removeEventListener('transitionend', schedule)
+    }
+    // rowRef 是稳定引用，不入依赖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled])
+
+  return pos
 }
 
 /** 完整 props：输入工具行槽位运行时 + 词典。 */
@@ -68,8 +169,11 @@ export function PromptButton({ useInput, useSession, inputActions, t }: PromptBu
 
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
   const draftRef = useRef(draft)
   draftRef.current = draft
+
+  const pos = useComposerAnchor(rowRef, settings.promptButtonEnabled)
 
   // 智能回车：随本组件（composer 存在期）挂载。
   useSmartEnter((mode) => {
@@ -102,24 +206,34 @@ export function PromptButton({ useInput, useSession, inputActions, t }: PromptBu
 
   return (
     <>
-      {/* 版本更新 Logo（原提示词按钮左侧的 smart-input-update-btn，有未读更新时显示） */}
-      <UpdateLogoButton t={t} dark={dark} />
-      <button
-        ref={btnRef}
-        type="button"
-        className={css.promptBtn}
-        data-theme={dark ? 'dark' : 'light'}
-        aria-label={t('prompt.title')}
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setOpen(v => !v)
-        }}
-      >
-        <svg className={css.promptIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-        </svg>
-      </button>
+      {createPortal(
+        // 未量到卡片前先隐藏，避免按钮在 (0,0) 闪一帧（原先量尺寸时的 visibility 处理）。
+        <div
+          ref={rowRef}
+          className={css.floatingRow}
+          style={pos === null ? { visibility: 'hidden' } : { top: `${pos.top}px`, left: `${pos.left}px` }}
+        >
+          {/* 版本更新 Logo（原提示词按钮左侧的 smart-input-update-btn，有未读更新时显示） */}
+          <UpdateLogoButton t={t} dark={dark} />
+          <button
+            ref={btnRef}
+            type="button"
+            className={css.promptBtn}
+            data-theme={dark ? 'dark' : 'light'}
+            aria-label={t('prompt.title')}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setOpen(v => !v)
+            }}
+          >
+            <svg className={css.promptIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+          </button>
+        </div>,
+        document.body,
+      )}
       {open
         ? (
           <PromptDropdown

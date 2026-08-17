@@ -3,7 +3,20 @@
    （移植原 prompt-button.css + panelModal/tabs/prompt/styles.css 下拉部分）
    ============================================ */
 
-/* ==== 提示词按钮（原 .smart-input-prompt-btn；DSH 下坐在 composer 工具行） ==== */
+/* ==== 浮动容器：贴在 composer 卡片左外侧（原 .smart-input-prompt-btn 的 fixed 定位）。
+   坐标由 JS 逐帧跟随卡片，容器右端对齐卡片左外侧，Logo 按钮排在提示词按钮左侧 ==== */
+.floatingRow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  /* Logo 按钮与提示词按钮的间距（原 config.updateBtnGap）。 */
+  gap: 6px;
+}
+
+/* ==== 提示词按钮（原 .smart-input-prompt-btn） ==== */
 .promptBtn {
   display: flex;
   align-items: center;
