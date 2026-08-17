@@ -10,6 +10,8 @@
   width: 100vw;
   height: 100vh;
   z-index: 99999;
+  /* UiHost 宿主容器为 pointer-events:none，各浮层须自行恢复交互。 */
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;

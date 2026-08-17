@@ -11,6 +11,8 @@
   left: 0;
   right: 0;
   bottom: 0;
+  /* UiHost 宿主容器为 pointer-events:none，各浮层须自行恢复交互。 */
+  pointer-events: auto;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);

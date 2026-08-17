@@ -784,6 +784,8 @@
   height: 100%;
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 2147483647;
+  /* StarEditModalHost 走 UiHost（pointer-events:none）渲染时须自行恢复交互。 */
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;
