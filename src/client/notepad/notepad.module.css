@@ -1,0 +1,569 @@
+/* ============================================
+   闪记面板 & 入口按钮（移植原 notepad.css，适配 light/dark 主题）
+   ============================================ */
+
+/* ── 面板容器 ── */
+.panel {
+  --ait-notepad-bg: #fffdf7;
+  --ait-notepad-border: rgba(0, 0, 0, 0.08);
+  --ait-notepad-shadow-strong: rgba(0, 0, 0, 0.10);
+  --ait-notepad-shadow-soft: rgba(0, 0, 0, 0.05);
+  --ait-notepad-header-bg: rgba(0, 0, 0, 0.025);
+  --ait-notepad-footer-bg: rgba(0, 0, 0, 0.015);
+  --ait-notepad-divider: rgba(0, 0, 0, 0.06);
+  --ait-notepad-text: #222;
+  --ait-notepad-title: #444;
+  --ait-notepad-muted: #888;
+  --ait-notepad-secondary: #aaa;
+  --ait-notepad-placeholder: #c0c0c0;
+  --ait-notepad-empty: #bbb;
+  --ait-notepad-accent: #6128FF;
+  --ait-notepad-folder: #8b7adf;
+  --ait-notepad-hover: rgba(0, 0, 0, 0.05);
+  --ait-notepad-hover-strong: rgba(0, 0, 0, 0.07);
+  --ait-notepad-active-bg: rgba(0, 0, 0, 0.12);
+  --ait-notepad-scrollbar: rgba(0, 0, 0, 0.15);
+  --ait-notepad-list-scrollbar: rgba(0, 0, 0, 0.12);
+  --ait-notepad-danger-bg: rgba(220, 50, 50, 0.08);
+  --ait-notepad-danger-bg-active: rgba(220, 50, 50, 0.15);
+  --ait-notepad-danger: #e53e3e;
+  --ait-notepad-delete: #ccc;
+
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  z-index: 99998;
+  width: 260px;
+  height: 370px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--ait-notepad-bg);
+  border: 1px solid var(--ait-notepad-border);
+  box-shadow:
+    0 8px 32px var(--ait-notepad-shadow-strong),
+    0 2px 8px var(--ait-notepad-shadow-soft);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.96) translateX(6px);
+  transform-origin: right bottom;
+  transition:
+    opacity 0.15s cubic-bezier(0, 0, 0.2, 1),
+    transform 0.15s cubic-bezier(0, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.panel[data-theme='dark'] {
+  --ait-notepad-bg: #1f1f23;
+  --ait-notepad-border: rgba(255, 255, 255, 0.12);
+  --ait-notepad-shadow-strong: rgba(0, 0, 0, 0.45);
+  --ait-notepad-shadow-soft: rgba(0, 0, 0, 0.30);
+  --ait-notepad-header-bg: rgba(255, 255, 255, 0.04);
+  --ait-notepad-footer-bg: rgba(255, 255, 255, 0.03);
+  --ait-notepad-divider: rgba(255, 255, 255, 0.08);
+  --ait-notepad-text: #f2f2f3;
+  --ait-notepad-title: #f5f5f7;
+  --ait-notepad-muted: #a0a0a6;
+  --ait-notepad-secondary: #8e8e93;
+  --ait-notepad-placeholder: #77777d;
+  --ait-notepad-empty: #77777d;
+  --ait-notepad-accent: #8B5CF6;
+  --ait-notepad-folder: #a78bfa;
+  --ait-notepad-hover: rgba(255, 255, 255, 0.06);
+  --ait-notepad-hover-strong: rgba(255, 255, 255, 0.09);
+  --ait-notepad-active-bg: rgba(255, 255, 255, 0.13);
+  --ait-notepad-scrollbar: rgba(255, 255, 255, 0.22);
+  --ait-notepad-list-scrollbar: rgba(255, 255, 255, 0.18);
+  --ait-notepad-danger-bg: rgba(248, 113, 113, 0.14);
+  --ait-notepad-danger-bg-active: rgba(248, 113, 113, 0.22);
+  --ait-notepad-danger: #f87171;
+  --ait-notepad-delete: #77777d;
+}
+
+.panel.visible {
+  opacity: 0.55;
+  pointer-events: none;
+  transform: scale(1) translateX(0);
+}
+
+.panel.visible.focused {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── 头部 ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px 10px 14px;
+  background: var(--ait-notepad-header-bg);
+  border-bottom: 1px solid var(--ait-notepad-divider);
+  flex-shrink: 0;
+  user-select: none;
+  cursor: move;
+  gap: 8px;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* ── 标题 ── */
+.title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ait-notepad-title);
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title svg {
+  display: block;
+  flex-shrink: 0;
+  color: var(--ait-notepad-accent);
+}
+
+/* ── 头部按钮（关闭 / 列表 / 新增） ── */
+.headerBtn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ait-notepad-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.headerBtn:hover {
+  background: var(--ait-notepad-hover-strong);
+  color: var(--ait-notepad-title);
+}
+
+.headerBtn:active {
+  background: var(--ait-notepad-active-bg);
+}
+
+/* ── 主体区域 ── */
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 列表视图 ── */
+.list {
+  display: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ait-notepad-list-scrollbar) transparent;
+}
+
+.listVisible {
+  display: flex;
+  flex-direction: column;
+}
+
+.list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: var(--ait-notepad-list-scrollbar);
+  border-radius: 2px;
+}
+
+/* ── 列表项 ── */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.item:hover {
+  background: var(--ait-notepad-hover);
+}
+
+.item:active {
+  background: var(--ait-notepad-hover-strong);
+}
+
+.itemContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ait-notepad-text);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.itemFolderLine {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.itemFolder {
+  flex-shrink: 0;
+  color: var(--ait-notepad-folder);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.itemFolder::after {
+  content: '›';
+  opacity: 0.5;
+  margin: 0 4px;
+}
+
+.itemStarTitle {
+  color: var(--ait-notepad-secondary);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.itemMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--ait-notepad-secondary);
+  line-height: 1.3;
+}
+
+.itemTime {
+  flex-shrink: 0;
+}
+
+/* ── 列表项删除按钮 ── */
+.itemDelete {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ait-notepad-delete);
+  transition: background-color 0.12s ease, color 0.12s ease;
+  padding: 0;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.item:hover .itemDelete {
+  opacity: 1;
+}
+
+.itemDelete:hover {
+  background: var(--ait-notepad-danger-bg);
+  color: var(--ait-notepad-danger);
+}
+
+.itemDelete:active {
+  background: var(--ait-notepad-danger-bg-active);
+}
+
+/* ── 编辑器 ── */
+.editor {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.65;
+  font-family: inherit;
+  background: transparent;
+  color: var(--ait-notepad-text);
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ait-notepad-scrollbar) transparent;
+}
+
+.editor::-webkit-scrollbar {
+  width: 4px;
+}
+
+.editor::-webkit-scrollbar-thumb {
+  background: var(--ait-notepad-scrollbar);
+  border-radius: 2px;
+}
+
+.editor::placeholder {
+  color: var(--ait-notepad-placeholder);
+  font-size: 13px;
+}
+
+.editor:focus,
+.editor:focus-visible,
+.editor:active {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ── 失焦预览层：保留半透明视觉，但不暴露 textarea 内容给页面全选 ── */
+.preview {
+  display: none;
+  flex: 1;
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.65;
+  font-family: inherit;
+  color: var(--ait-notepad-text);
+  box-sizing: border-box;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ait-notepad-scrollbar) transparent;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  pointer-events: none;
+}
+
+.preview::-webkit-scrollbar {
+  width: 4px;
+}
+
+.preview::-webkit-scrollbar-thumb {
+  background: var(--ait-notepad-scrollbar);
+  border-radius: 2px;
+}
+
+.previewEmpty {
+  color: var(--ait-notepad-placeholder);
+  font-size: 13px;
+}
+
+.panel.visible:not(.focused) .editor {
+  display: none !important;
+}
+
+.panel.visible:not(.focused) .preview:not([hidden]) {
+  display: block;
+}
+
+/* ── 底部文件夹位置栏 ── */
+.footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--ait-notepad-divider);
+  padding: 6px 10px;
+  background: var(--ait-notepad-footer-bg);
+}
+
+.location {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
+  max-width: 100%;
+  color: var(--ait-notepad-muted);
+}
+
+.location:hover {
+  background: var(--ait-notepad-hover);
+  color: var(--ait-notepad-title);
+}
+
+.location:active {
+  background: var(--ait-notepad-hover-strong);
+}
+
+.location > svg {
+  flex-shrink: 0;
+}
+
+.locationText {
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  color: var(--ait-notepad-title);
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.locationText.locationEmpty {
+  color: var(--ait-notepad-empty);
+  display: inline;
+}
+
+.locFolder {
+  flex-shrink: 0;
+  color: var(--ait-notepad-folder);
+}
+
+.locFolder::after {
+  content: '›';
+  opacity: 0.5;
+  margin: 0 4px;
+}
+
+.locTitle {
+  color: var(--ait-notepad-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ── 调整大小手柄（8 方向，与 runner 保持一致）── */
+.resizeHandle {
+  position: absolute;
+  z-index: 10;
+}
+
+.resizeHandle[data-direction='se'] {
+  right: 0; bottom: 0;
+  width: 16px; height: 16px;
+  cursor: nwse-resize;
+}
+
+.resizeHandle[data-direction='sw'] {
+  left: 0; bottom: 0;
+  width: 16px; height: 16px;
+  cursor: nesw-resize;
+}
+
+.resizeHandle[data-direction='ne'] {
+  right: 0; top: 0;
+  width: 16px; height: 16px;
+  cursor: nesw-resize;
+}
+
+.resizeHandle[data-direction='nw'] {
+  left: 0; top: 0;
+  width: 16px; height: 16px;
+  cursor: nwse-resize;
+}
+
+.resizeHandle[data-direction='e'] {
+  right: 0; top: 16px; bottom: 16px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.resizeHandle[data-direction='w'] {
+  left: 0; top: 16px; bottom: 16px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.resizeHandle[data-direction='n'] {
+  top: 0; left: 16px; right: 16px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.resizeHandle[data-direction='s'] {
+  bottom: 0; left: 16px; right: 16px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+/* ── 时间轴上的入口按钮 ── */
+.notepadBtn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  margin-top: -4px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  border-radius: 6px;
+  flex-shrink: 0;
+  color: #6b6b6b;
+}
+
+.notepadBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.notepadBtn:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+  color: #444;
+}
+
+.notepadBtn:active {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.notepadBtn.notepadBtnActive {
+  color: #6128FF;
+}
+
+:global([data-dsh-tl-theme='dark']) .notepadBtn {
+  color: #9a9a9a;
+}
+
+:global([data-dsh-tl-theme='dark']) .notepadBtn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+}
+
+:global([data-dsh-tl-theme='dark']) .notepadBtn:active {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+:global([data-dsh-tl-theme='dark']) .notepadBtn.notepadBtnActive {
+  color: #8B5CF6;
+}

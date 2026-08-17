@@ -1,0 +1,80 @@
+{
+  "name": "dsh-timeline-plugin",
+  "description": "DSH 原生时间轴插件：会话右侧时间轴导航、问题列表与收藏标记",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "prepare": "tsdown"
+  },
+  "license": "GPL-3.0-or-later",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-client-locale": "*",
+    "@deepseek-ai/dsh-client-runtime": "*",
+    "@deepseek-ai/dsh-client-ui-conversation": "*",
+    "@deepseek-ai/dsh-client-ui-input-trigger": "*",
+    "@deepseek-ai/dsh-client-ui-layout": "*",
+    "@deepseek-ai/dsh-client-ui-primitives": "*",
+    "@deepseek-ai/dsh-client-ui-settings": "*",
+    "@deepseek-ai/dsh-client-ui-sidebar": "*",
+    "@deepseek-ai/dsh-client-ui-slots": "*",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "link:../../deepseekharness/vendor/cordis",
+    "@deepseek-ai/dsh-client-locale": "link:../../deepseekharness/packages/client/locale",
+    "@deepseek-ai/dsh-client-runtime": "link:../../deepseekharness/packages/client/runtime",
+    "@deepseek-ai/dsh-client-ui-conversation": "link:../../deepseekharness/packages/client/ui-conversation",
+    "@deepseek-ai/dsh-client-ui-input-trigger": "link:../../deepseekharness/packages/client/ui-input-trigger",
+    "@deepseek-ai/dsh-client-ui-layout": "link:../../deepseekharness/packages/client/ui-layout",
+    "@deepseek-ai/dsh-client-ui-primitives": "link:../../deepseekharness/packages/client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-settings": "link:../../deepseekharness/packages/client/ui-settings",
+    "@deepseek-ai/dsh-client-ui-sidebar": "link:../../deepseekharness/packages/client/ui-sidebar",
+    "@deepseek-ai/dsh-client-ui-slots": "link:../../deepseekharness/packages/client/ui-slots",
+    "@types/react": "~18.3.1",
+    "@types/react-dom": "~18.3.7",
+    "lightningcss": "^1.32.0",
+    "react": "^18.2.0",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "unrun": "^0.2.39"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/client.js.map",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml"
+  ],
+  "dependencies": {
+    "temml": "^0.13.4"
+  }
+}

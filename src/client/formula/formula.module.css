@@ -1,0 +1,161 @@
+/**
+ * 公式交互样式：移植原 formula/formula.css + tooltip-manager 基础样式中
+ * 公式 tooltip 用到的部分。hover/active 效果挂在宿主 .katex 元素上
+ * （类名经 CSS Modules hash，由 FormulaHost 动态附加）；
+ * 深色模式经 data-tl-dark 属性（原 html[data-timeline-theme="dark"]）。
+ */
+
+/* ==================== 公式基础交互（原 .katex.formula-interactive） ==================== */
+
+.interactive {
+  position: relative;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+  border-radius: 6px;
+}
+
+.interactive.hover {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  cursor: pointer;
+}
+
+.interactive[data-tl-dark='true'].hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.interactive:active {
+  transform: scale(0.998);
+}
+
+/* ==================== 公式 tooltip（原 .timeline-tooltip-base.formula-tooltip） ==================== */
+
+.tooltip {
+  position: fixed;
+  border-radius: 8px;
+  padding: 6px 8px 6px 14px;
+  box-sizing: border-box;
+  background-color: var(--formula-tooltip-bg);
+  color: var(--formula-tooltip-text);
+  border: 1px solid var(--formula-tooltip-border);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  word-break: break-word;
+  /* 原 formula 配置的 300 从未生效，实际由 .timeline-tooltip-base 的 400px 决定 */
+  max-width: 400px;
+  z-index: 2147483648;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  /* 原 formula 类型 allowHover: true，需可移入点设置按钮 */
+  pointer-events: auto;
+  user-select: none;
+}
+
+.tooltip.tooltipVisible {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 箭头：before 边框、after 填充（原 timeline-tooltip-base 箭头） */
+.tooltip::before,
+.tooltip::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.tooltip[data-placement='top']::before {
+  bottom: -8px;
+  left: var(--arrow-offset, 50%);
+  margin-left: -8px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid var(--formula-tooltip-border);
+}
+
+.tooltip[data-placement='top']::after {
+  bottom: -6px;
+  left: var(--arrow-offset, 50%);
+  margin-left: -7px;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 7px solid var(--formula-tooltip-bg);
+}
+
+.tooltip[data-placement='bottom']::before {
+  top: -8px;
+  left: var(--arrow-offset, 50%);
+  margin-left: -8px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid var(--formula-tooltip-border);
+}
+
+.tooltip[data-placement='bottom']::after {
+  top: -6px;
+  left: var(--arrow-offset, 50%);
+  margin-left: -7px;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 7px solid var(--formula-tooltip-bg);
+}
+
+/* ==================== tooltip 内部布局：文字 + 设置 icon ==================== */
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.text {
+  flex-shrink: 0;
+}
+
+.settingsBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.5;
+  transition: opacity 0.15s, background-color 0.15s;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.settingsBtn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.settingsBtn:active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* 深色模式 tooltip 下的设置 icon hover（原 [data-tooltip-theme="dark"] 分支） */
+.tooltip[data-tooltip-theme='dark'] .settingsBtn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.tooltip[data-tooltip-theme='dark'] .settingsBtn:active {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.settingsBtn svg {
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+}

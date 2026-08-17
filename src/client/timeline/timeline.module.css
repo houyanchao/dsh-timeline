@@ -1,0 +1,1140 @@
+/* 时间轴样式：逐参数移植自原扩展 variables.css / timeline.css /
+   question-list/styles.css。深浅两套值由根节点 data-dsh-tl-theme 切换
+  （原版为 html[data-timeline-theme]）。 */
+
+/* ==== 变量（原 variables.css 的 timeline 段） ==== */
+.root {
+  --tl-dot-color: #D1D5DB;
+  --tl-dot-active-color: #6128FF;
+  --tl-star-color: #FF7D03;
+  --tl-tooltip-bg: #f8fafc;
+  --tl-tooltip-text: #334155;
+  --tl-tooltip-border: #e2e8f0;
+  --tl-tooltip-radius: 12px;
+  --tl-tooltip-shadow: 0 4px 14px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --tl-tooltip-lh: 18px;
+  --tl-tooltip-border-w: 1px;
+  --tl-tooltip-anim-in: 120ms cubic-bezier(0, 0, 0.2, 1);
+  --tl-bar-bg: rgba(246, 246, 248, 0.8);
+  --tl-dot-size: 14px;
+  --tl-star-size: 17px;
+  --tl-active-ring: 3px;
+  --tl-star-ring: 5px;
+  --tl-track-padding: 16px;
+  --tl-tooltip-max: 288px;
+  --tl-hit-size: 30px;
+  --tl-compact-line-width: 18px;
+  --tl-compact-line-hover-width: 24px;
+  --tl-compact-line-height: 2px;
+  --tl-toggle-color: #999;
+  --tl-toggle-hover-bg: rgba(0, 0, 0, 0.08);
+  --tl-toggle-hover-color: #666;
+  --tl-qlbtn-color: #6b6b6b;
+  --tl-qlbtn-hover-bg: rgba(0, 0, 0, 0.08);
+}
+
+.root[data-dsh-tl-theme='dark'] {
+  --tl-dot-color: #A0A0A0;
+  --tl-dot-active-color: #8B5CF6;
+  --tl-star-color: #FB923C;
+  --tl-active-ring: 4px;
+  --tl-tooltip-bg: #27272a;
+  --tl-tooltip-text: #e5e7eb;
+  --tl-tooltip-border: #3f3f46;
+  --tl-bar-bg: rgba(45, 45, 48, 0.95);
+  --tl-toggle-color: #666;
+  --tl-toggle-hover-bg: rgba(255, 255, 255, 0.08);
+  --tl-toggle-hover-color: #999;
+  --tl-qlbtn-color: #9a9a9a;
+  --tl-qlbtn-hover-bg: rgba(255, 255, 255, 0.1);
+}
+
+/* ==== 包装容器（.ait-chat-timeline-wrapper）
+   right 取原 DeepSeek adapter getTimelinePosition 注入的 22px
+   （原 CSS fallback 17px 被内联样式覆盖，实际渲染为 22px）。 ==== */
+.wrapper {
+  position: fixed;
+  top: 120px;
+  right: 22px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.wrapperCollapsed {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(20px);
+}
+
+/* ==== 折叠/展开按钮（.timeline-toggle-btn） ==== */
+.toggleBtn {
+  position: fixed;
+  top: 50%;
+  right: 1px;
+  z-index: 31;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  color: var(--tl-toggle-color);
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggleBtnCollapsed,
+.toggleBtnVisible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.toggleBtn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.toggleBtn:hover {
+  background-color: var(--tl-toggle-hover-bg);
+  color: var(--tl-toggle-hover-color);
+}
+
+/* ==== 轴条（.ait-chat-timeline-bar） ==== */
+.bar {
+  position: relative;
+  width: 28px;
+  height: max(200px, calc(100vh - 120px - 120px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 12px;
+  background-color: var(--tl-bar-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background-color 0.3s ease;
+  overflow: visible;
+  contain: layout;
+}
+
+.root[data-dsh-tl-theme='dark'] .bar {
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4),
+              0 0 1px rgba(255, 255, 255, 0.1),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* 轨道（.ait-timeline-track）：内容可高于可视区，随主滚动联动 */
+.track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+
+.track::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.trackContent {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+}
+
+/* 图钉标记（.timeline-pin-marker）：渲染在轴条左侧、与圆点同法定位 */
+.pinMarker {
+  position: absolute;
+  left: -18px;
+  top: calc(var(--tl-track-padding) + (100% - 2 * var(--tl-track-padding)) * var(--n, 0));
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  z-index: 10;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="rgb(255, 125, 3)" stroke="rgb(255, 125, 3)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+/* ==== 圆点（.ait-timeline-dot） ==== */
+.dot {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--tl-track-padding) + (100% - 2 * var(--tl-track-padding)) * var(--n, 0));
+  transform: translate(-50%, -50%);
+  width: var(--tl-hit-size);
+  height: var(--tl-hit-size);
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dot::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--tl-dot-size);
+  height: var(--tl-dot-size);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background-color: var(--tl-dot-color);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  z-index: 1;
+}
+
+.dot:hover::after {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+.dot:not(.dotActive):not(.dotStarred):hover::after {
+  background-color: #999999;
+}
+
+.root[data-dsh-tl-theme='dark'] .dot:not(.dotActive):not(.dotStarred):hover::after {
+  background-color: #C0C0C0;
+}
+
+.dotActive::after {
+  box-shadow: none;
+}
+
+.dotActive:not(.dotStarred)::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--tl-dot-size) + 2 * var(--tl-active-ring));
+  height: calc(var(--tl-dot-size) + 2 * var(--tl-active-ring));
+  border-radius: 50%;
+  background: var(--tl-dot-active-color);
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dotActive:not(.dotStarred):hover::before {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+/* 已收藏：橙色五角星（clip-path 与原版一致） */
+.dotStarred::after {
+  background-color: var(--tl-star-color);
+  border-radius: 0;
+  width: var(--tl-star-size);
+  height: var(--tl-star-size);
+  clip-path: polygon(
+    50% 8.33%,
+    62.875% 34.42%,
+    91.67% 38.63%,
+    70.83% 58.92%,
+    75.75% 87.58%,
+    50% 74.04%,
+    24.25% 87.58%,
+    29.17% 58.92%,
+    8.33% 38.63%,
+    37.125% 34.42%
+  );
+}
+
+/* 已收藏且激活：::before 绘制五角星边框环 */
+.dotStarred.dotActive::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--tl-star-size) + 2 * var(--tl-star-ring));
+  height: calc(var(--tl-star-size) + 2 * var(--tl-star-ring));
+  transform: translate(-50%, -50%);
+  background: var(--tl-dot-active-color);
+  clip-path: polygon(
+    50% 8.33%,
+    62.875% 34.42%,
+    91.67% 38.63%,
+    70.83% 58.92%,
+    75.75% 87.58%,
+    50% 74.04%,
+    24.25% 87.58%,
+    29.17% 58.92%,
+    8.33% 38.63%,
+    37.125% 34.42%
+  );
+  z-index: 0;
+  transition: transform 0.15s ease;
+}
+
+.dotStarred.dotActive:hover::before {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+/* ==== 紧凑模式（.ait-compact-mode：节点变横线，隐藏背景框） ==== */
+.barCompact {
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+.root[data-dsh-tl-theme='dark'] .barCompact {
+  box-shadow: none;
+}
+
+.barCompact .dot::after {
+  border-radius: 0;
+  width: var(--tl-compact-line-width);
+  height: var(--tl-compact-line-height);
+  left: auto;
+  right: 4px;
+  transform: translateY(-50%);
+  clip-path: none;
+  transition: width 0.16s ease, height 0.16s ease, background-color 0.15s ease, filter 0.15s ease;
+}
+
+.barCompact .dot:hover::after {
+  width: var(--tl-compact-line-hover-width);
+}
+
+.barCompact .dotStarred::after {
+  background-color: var(--tl-star-color);
+}
+
+.barCompact .dotStarred:not(.dotActive):hover::after {
+  background-color: var(--tl-star-color);
+  filter: brightness(1.08);
+}
+
+.barCompact .dotActive::after {
+  background: var(--tl-dot-active-color);
+  box-shadow: none;
+}
+
+.barCompact .dotActive:not(.dotStarred)::before {
+  content: none;
+  display: none;
+}
+
+.barCompact .dotStarred.dotActive::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  left: auto;
+  width: 9px;
+  height: var(--tl-compact-line-height);
+  border-radius: 0;
+  background: var(--tl-star-color);
+  clip-path: none;
+  transform: translate(-100%, -50%);
+  transition: width 0.16s ease, filter 0.15s ease;
+  pointer-events: none;
+  z-index: 2;
+  display: block;
+}
+
+.barCompact .dotStarred.dotActive:hover::before {
+  width: 12px;
+}
+
+.barCompact .dot:not(.dotActive):not(.dotStarred):hover::after,
+.barCompact .dotActive:not(.dotStarred):hover::after {
+  background: var(--tl-dot-active-color);
+}
+
+/* ==== 悬浮气泡（.timeline-tooltip） ==== */
+.tooltip {
+  position: fixed;
+  max-width: var(--tl-tooltip-max);
+  width: auto;
+  min-width: 80px;
+  display: flex;
+  align-items: stretch;
+  background-color: var(--tl-tooltip-bg);
+  color: var(--tl-tooltip-text);
+  padding: 14px 18px;
+  border-radius: var(--tl-tooltip-radius);
+  border: var(--tl-tooltip-border-w) solid var(--tl-tooltip-border);
+  font-size: 15px;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-shadow: var(--tl-tooltip-shadow);
+  pointer-events: auto;
+  cursor: text;
+  z-index: 2147483647;
+  overflow: visible;
+  opacity: 0;
+  will-change: opacity, transform;
+  transition: opacity var(--tl-tooltip-anim-in);
+}
+
+.tooltipVisible {
+  opacity: 1;
+  animation: tooltipIn var(--tl-tooltip-anim-in);
+}
+
+.tooltip[data-placement='left'] {
+  transform-origin: right center;
+}
+
+@keyframes tooltipIn {
+  from { transform: translateY(-50%) scale(0.96); }
+  to { transform: translateY(-50%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip,
+  .tooltipVisible {
+    transition: opacity 120ms linear;
+    animation: none;
+  }
+}
+
+.tooltipContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.tooltipContentWrap {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tooltipTime {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.root[data-dsh-tl-theme='dark'] .tooltipTime {
+  color: #a1a1aa;
+}
+
+.tooltipContent {
+  flex: 0 1 auto;
+  line-height: var(--tl-tooltip-lh);
+  overflow: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease;
+  position: relative;
+}
+
+.tooltipContent:hover {
+  opacity: 0.8;
+}
+
+.tooltipContent:active {
+  opacity: 0.6;
+}
+
+.tooltipActions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 图钉操作（.timeline-tooltip-pin）：SVG 背景图与原版一致 */
+.tooltipPin {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+  opacity: 1;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="rgb(255, 125, 3)" stroke="rgb(255, 125, 3)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>');
+}
+
+.tooltipPinOff {
+  opacity: 0.35;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23334155" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>');
+}
+
+.tooltipPinOff:hover {
+  opacity: 0.7;
+}
+
+.root[data-dsh-tl-theme='dark'] .tooltipPinOff {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23e5e7eb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>');
+}
+
+/* 星标操作（.timeline-tooltip-star）：SVG 背景图与原版一致 */
+.tooltipStar {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+  opacity: 1;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 26 26"><path fill="rgb(255, 125, 3)" stroke="rgb(255, 125, 3)" stroke-width="0.5" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
+}
+
+.tooltipStarOff {
+  opacity: 0.35;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 26 26"><path fill="none" stroke="%23334155" stroke-width="1.5" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
+}
+
+.tooltipStarOff:hover {
+  opacity: 0.7;
+}
+
+.root[data-dsh-tl-theme='dark'] .tooltipStarOff {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 26 26"><path fill="none" stroke="%23e5e7eb" stroke-width="1.5" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
+}
+
+/* ==== 问题列表按钮（.ait-question-list-btn） ==== */
+.questionListBtn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  transition: background-color 0.2s ease;
+  border-radius: 6px;
+  flex-shrink: 0;
+  color: var(--tl-qlbtn-color);
+}
+
+.questionListBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.questionListBtn:hover {
+  background-color: var(--tl-qlbtn-hover-bg);
+}
+
+.questionListBtnActive {
+  color: #7450ff;
+  background-color: rgba(116, 80, 255, 0.12);
+}
+
+.root[data-dsh-tl-theme='dark'] .questionListBtnActive {
+  color: #a78bfa;
+  background-color: rgba(116, 80, 255, 0.2);
+}
+
+/* ==== 问题列表面板（.ait-question-list-popup） ==== */
+.qlPopup {
+  width: 250px;
+  height: max(200px, calc(100vh - 120px - 120px));
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: qlIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  flex-shrink: 0;
+}
+
+@keyframes qlIn {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.qlHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+}
+
+.qlTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+}
+
+.qlList {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 2px;
+  overscroll-behavior: contain;
+}
+
+.qlList::-webkit-scrollbar { width: 8px; }
+.qlList::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); border-radius: 10px; }
+.qlList::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.35); }
+.qlList::-webkit-scrollbar-track { background: transparent; }
+
+.qlItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 6px 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: 6px;
+  margin-bottom: 1px;
+}
+
+.qlItem:last-child { margin-bottom: 0; }
+.qlItem:hover { background: rgba(0, 0, 0, 0.04); }
+.qlItemActive { background: rgba(0, 0, 0, 0.05); }
+
+.qlIndex {
+  font-size: 12px;
+  font-weight: 600;
+  color: #86868b;
+  min-width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.qlItemActive .qlIndex {
+  color: #1d1d1f;
+  font-weight: 700;
+}
+
+.qlText {
+  flex: 1;
+  font-size: 12.5px;
+  color: #1d1d1f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.qlItemActive .qlText {
+  color: #1d1d1f;
+  font-weight: 500;
+}
+
+/* 行内收藏（.ait-ql-item-star）：默认隐藏，hover 行或已收藏时显示 */
+/* 齿轮设置按钮（原 .ait-ql-header-right / .ait-ql-settings） */
+.qlHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.qlSettings {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #86868b;
+  border-radius: 6px;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.qlSettings svg {
+  width: 12px;
+  height: 12px;
+}
+
+.qlSettings:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+}
+
+/* 图钉（原 .ait-ql-item-pin：默认隐藏，行 hover 浮现；已标记橙色常显） */
+.qlPin {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+  border-radius: 4px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="rgb(255, 125, 3)" stroke="rgb(255, 125, 3)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>');
+}
+
+.qlPinOff {
+  opacity: 0;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>');
+}
+
+.qlItem:hover .qlPinOff { opacity: 0.5; }
+.qlPinOff:hover { opacity: 0.8; }
+
+.qlStar {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+  border-radius: 4px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transition: opacity 0.15s;
+  opacity: 1;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 26 26"><path fill="rgb(255, 125, 3)" stroke="rgb(255, 125, 3)" stroke-width="0.5" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
+}
+
+.qlStarOff {
+  opacity: 0;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 26 26"><path fill="none" stroke="%23999" stroke-width="1.5" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
+}
+
+.qlItem:hover .qlStarOff { opacity: 0.5; }
+.qlStarOff:hover { opacity: 0.8; }
+
+.qlEmpty {
+  padding: 32px 16px;
+  text-align: center;
+  color: #86868b;
+  font-size: 12.5px;
+}
+
+/* 问题列表深色模式 */
+.root[data-dsh-tl-theme='dark'] .qlPopup {
+  background: #2c2c2e;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.root[data-dsh-tl-theme='dark'] .qlHeader { border-bottom-color: rgba(255, 255, 255, 0.06); }
+.root[data-dsh-tl-theme='dark'] .qlTitle { color: #f5f5f7; }
+.root[data-dsh-tl-theme='dark'] .qlItem:hover { background: rgba(255, 255, 255, 0.06); }
+.root[data-dsh-tl-theme='dark'] .qlItemActive { background: rgba(255, 255, 255, 0.08); }
+.root[data-dsh-tl-theme='dark'] .qlIndex { color: #8e8e93; }
+.root[data-dsh-tl-theme='dark'] .qlItemActive .qlIndex { color: #f5f5f7; }
+.root[data-dsh-tl-theme='dark'] .qlText { color: #f5f5f7; }
+.root[data-dsh-tl-theme='dark'] .qlItemActive .qlText { color: #f5f5f7; }
+.root[data-dsh-tl-theme='dark'] .qlEmpty { color: #8e8e93; }
+.root[data-dsh-tl-theme='dark'] .qlStarOff {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 26 26"><path fill="none" stroke="%23888" stroke-width="1.5" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
+}
+
+.root[data-dsh-tl-theme='dark'] .qlSettings { color: #8e8e93; }
+
+.root[data-dsh-tl-theme='dark'] .qlSettings:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5f5f7;
+}
+
+.root[data-dsh-tl-theme='dark'] .qlPinOff {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>');
+}
+.root[data-dsh-tl-theme='dark'] .qlList::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
+.root[data-dsh-tl-theme='dark'] .qlList::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.35); }
+
+/* ==== 收藏弹窗（逐参数移植原 star-input-modal.css，本轮不含文件夹选择器） ==== */
+.starOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.starOverlayVisible {
+  opacity: 1;
+}
+
+.starModal {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 500px;
+  animation: starModalSlideIn 0.3s ease;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModal {
+  background: #2a2a2a;
+}
+
+@keyframes starModalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.starModalHeader {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalHeader {
+  border-bottom-color: #404040;
+}
+
+.starModalHeader h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalHeader h3 {
+  color: #f3f4f6;
+}
+
+.starModalBody {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.starModalRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.starModalLabel {
+  flex-shrink: 0;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  padding-top: 10px;
+  white-space: nowrap;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalLabel {
+  color: #d1d5db;
+}
+
+.starModalRequired {
+  color: #ef4444;
+  margin-left: 1px;
+  font-size: 14px;
+}
+
+.starModalField {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.starModalInput {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #1f2937;
+  background: #ffffff;
+  line-height: 40px;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalInput {
+  background: #1a1a1a;
+  border-color: #404040;
+  color: #f3f4f6;
+}
+
+.starModalInput:hover {
+  border-color: #9ca3af;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalInput:hover {
+  border-color: #6b7280;
+}
+
+.starModalInput:focus {
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalInput:focus {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.starModalInput::placeholder {
+  color: #9ca3af;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalInput::placeholder {
+  color: #6b7280;
+}
+
+/* 必填校验提示（原版走全局 toast，这里内联在输入框下方） */
+.starModalError {
+  font-size: 12px;
+  color: #ef4444;
+}
+
+/* 文件夹选择器（原 .star-input-modal-folder-selector） */
+.starModalFolderSelector {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalFolderSelector {
+  background: #1a1a1a;
+  border-color: #404040;
+  color: #f3f4f6;
+}
+
+.starModalFolderSelector:hover {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalFolderSelector:hover {
+  border-color: #6b7280;
+  background: #262626;
+}
+
+.starModalFolderText {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.starModalFolderTextPlaceholder {
+  color: #9ca3af;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalFolderTextPlaceholder {
+  color: #6b7280;
+}
+
+.starModalFolderArrow {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.starModalFooter {
+  padding: 16px 24px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalFooter {
+  border-top-color: #404040;
+}
+
+.starModalCancel,
+.starModalConfirm {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.starModalCancel {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalCancel {
+  background: #404040;
+  color: #d1d5db;
+}
+
+.starModalCancel:hover {
+  background: #e5e7eb;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalCancel:hover {
+  background: #4b5563;
+}
+
+.starModalConfirm {
+  background: #000000;
+  color: #ffffff;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalConfirm {
+  background: #ffffff;
+  color: #000000;
+}
+
+.starModalConfirm:hover {
+  background: #1f1f1f;
+}
+
+.root[data-dsh-tl-theme='dark'] .starModalConfirm:hover {
+  background: #e5e7eb;
+}
+
+.starModalConfirm:active {
+  transform: scale(0.95);
+}
+
+@media (max-width: 480px) {
+  .starModal {
+    width: 95%;
+    max-width: none;
+  }
+
+  .starModalHeader,
+  .starModalBody,
+  .starModalFooter {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* ==== 消息旁时间标签（原 .ait-chat-time-label：伪元素承载文本） ==== */
+.timeLabel[data-ait-time]::before {
+  content: attr(data-ait-time);
+  position: absolute;
+  top: var(--ait-time-top, -18px);
+  right: var(--ait-time-right, 0);
+  left: var(--ait-time-left, auto);
+  bottom: var(--ait-time-bottom, auto);
+  font-size: 12px;
+  color: rgba(51, 51, 51, 0.5);
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.timeLabelToggleable[data-ait-time]::before {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.timeLabelToggleable:hover::before {
+  opacity: 0.75;
+}
+
+.timeLabelToggleable:active::before {
+  opacity: 0.55;
+}
+
+.timeLabelToggleable:focus-visible::before {
+  outline: 2px solid var(--tl-dot-active-color);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* 深色模式（标签渲染在宿主消息 DOM 内，主题由组件写在标签自身） */
+.timeLabel[data-tl-dark='true'][data-ait-time]::before {
+  color: #d1d5db;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ==== 会话头部开关按钮（DSH 头部入口，保持简洁风格） ==== */
+.headerBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.headerBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.headerBtnOn {
+  color: var(--dsw-alias-brand-primary);
+}

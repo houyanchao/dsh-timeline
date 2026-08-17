@@ -1,0 +1,92 @@
+/**
+ * 追问浮动按钮样式：移植原 quickAsk/styles.css，
+ * variables.css 的 --ait-quick-ask-* 两套主题变量内联为 data-theme 分支
+ * （浅色主题用深色按钮，深色主题用浅色按钮，反差配色与原版一致）。
+ */
+
+/* 外层容器（原 .ait-quick-ask-btn） */
+.btn {
+  position: fixed;
+  z-index: 10000;
+
+  display: flex;
+  align-items: stretch;
+
+  background: #1a1a1a;
+  border-radius: 6px;
+  overflow: hidden;
+
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  /* 原 variables.css 的全局 user-select: none 名单成员 */
+  user-select: none;
+}
+
+.btn[data-theme='dark'] {
+  background: #f5f5f5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 追问按钮（原 .ait-quick-ask-action） */
+.action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+
+  background: none;
+  color: #fff;
+  border: none;
+  border-radius: 0;
+
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.action:hover {
+  background: #333;
+}
+
+.action:active {
+  background: #444;
+}
+
+.btn[data-theme='dark'] .action {
+  color: #1a1a1a;
+}
+
+.btn[data-theme='dark'] .action:hover {
+  background: #e5e5e5;
+}
+
+.btn[data-theme='dark'] .action:active {
+  background: #d4d4d4;
+}
+
+.action svg {
+  flex-shrink: 0;
+}
+
+/* 工具栏内的分隔线（原 highlight/styles.css 的 .ait-toolbar-divider +
+   variables.css 的 --ait-quick-ask-divider 两套主题值） */
+.divider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 4px 0;
+}
+
+.btn[data-theme='dark'] .divider {
+  background: rgba(0, 0, 0, 0.12);
+}

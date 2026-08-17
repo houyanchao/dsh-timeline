@@ -1,0 +1,1037 @@
+/* 收藏体系样式：逐参数移植原扩展
+   sidebarStarred/styles.css（面板容器/header/拖拽指示）、
+   panelModal/tabs/starred/styles.css（树节点/文件夹/收藏项）、
+   sidebarStarred/folder-edit-modal/styles.css（文件夹编辑弹窗 + 图标选择器）。
+   深浅主题由 .root[data-theme='dark'] 切换（原 html[data-timeline-theme]）。 */
+
+/* ==== 主题变量（原 .ait-folder-theme-adaptive） ==== */
+.root {
+  --ss-title-color: #1f1f1f;
+  --ss-icon-color: #444746;
+  --ss-hover-bg: rgba(68, 71, 70, 0.08);
+  --ss-empty-color: #70757a;
+  --ss-inline-icon-opacity: 0.35;
+  --ss-inline-icon-hover-opacity: 0.7;
+  --item-hover-bg: rgba(0, 0, 0, 0.06);
+  --item-active-bg: #D3E3FD;
+  --item-active-hover-bg: #C4D7F8;
+  --item-active-color: #0842A0;
+  --item-active-marker-color: #0842A0;
+  --item-name-color: #444746;
+  --item-name-hover-color: #1f2937;
+  --item-icon-color: #6b7280;
+  --item-action-color: #6b7280;
+  --item-action-hover-bg: rgba(0, 0, 0, 0.05);
+  --item-action-hover-color: #374151;
+  --item-drop-line-color: #3b82f6;
+  --folder-header-hover-bg: rgba(0, 0, 0, 0.06);
+  --folder-toggle-color: #444746;
+  --folder-icon-color: #FFA726;
+  --folder-name-color: #444746;
+  --folder-action-color: #6b7280;
+  --folder-action-hover-bg: rgba(0, 0, 0, 0.05);
+  --folder-action-hover-color: #374151;
+  --folder-drag-over-bg: rgba(59, 130, 246, 0.08);
+  --folder-drag-over-border: rgba(59, 130, 246, 0.3);
+  --folder-drop-line-color: #3b82f6;
+}
+
+/* 默认文件夹渐变：Mac 蓝色系 / 其它平台黄色系（原 .ait-folder-svg-mac/-default）。 */
+.root[data-folder-variant='mac'] {
+  --folder-gradient-top: #6CC4F8;
+  --folder-gradient-bottom: #3B9FE7;
+}
+
+.root[data-folder-variant='default'] {
+  --folder-gradient-top: #FFD666;
+  --folder-gradient-bottom: #E5A520;
+}
+
+.root[data-theme='dark'] {
+  --ss-title-color: #e8eaed;
+  --ss-icon-color: #9aa0a6;
+  --ss-hover-bg: rgba(232, 234, 237, 0.08);
+  --ss-empty-color: #9aa0a6;
+  --ss-inline-icon-opacity: 0.72;
+  --ss-inline-icon-hover-opacity: 1;
+  --item-hover-bg: rgba(255, 255, 255, 0.06);
+  --item-active-bg: rgba(66, 133, 244, 0.18);
+  --item-active-hover-bg: rgba(66, 133, 244, 0.25);
+  --item-active-color: #8ab4f8;
+  --item-active-marker-color: #8ab4f8;
+  --item-name-color: #e8eaed;
+  --item-name-hover-color: #ffffff;
+  --item-icon-color: #9aa0a6;
+  --item-action-color: #9aa0a6;
+  --item-action-hover-bg: rgba(255, 255, 255, 0.08);
+  --item-action-hover-color: #e8eaed;
+  --item-drop-line-color: #60a5fa;
+  --folder-header-hover-bg: rgba(255, 255, 255, 0.06);
+  --folder-toggle-color: #9aa0a6;
+  --folder-icon-color: #9aa0a6;
+  --folder-name-color: #e8eaed;
+  --folder-action-color: #9aa0a6;
+  --folder-action-hover-bg: rgba(255, 255, 255, 0.08);
+  --folder-action-hover-color: #e8eaed;
+  --folder-drag-over-bg: rgba(96, 165, 250, 0.1);
+  --folder-drag-over-border: rgba(96, 165, 250, 0.3);
+  --folder-drop-line-color: #60a5fa;
+}
+
+.root[data-theme='dark'][data-folder-variant='mac'],
+.root[data-theme='dark'][data-folder-variant='default'] {
+  --folder-gradient-top: #93c5fd;
+  --folder-gradient-bottom: #60a5fa;
+}
+
+/* ==== 面板容器（原 .ait-sidebar-starred，DSH 改为侧栏脚弹层） ==== */
+.panel {
+  position: fixed;
+  z-index: 2147483645;
+  width: 320px;
+  max-height: 480px;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 10px 0 5px 10px;
+  pointer-events: auto;
+}
+
+.root[data-theme='dark'] .panel {
+  background: #262626;
+  border-color: #404040;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.24);
+}
+
+.list {
+  padding-right: 5px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.root[data-theme='dark'] .list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.root[data-theme='dark'] .list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Header（原 .ait-ss-header） */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px 4px 10px;
+  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+
+.titleArea {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  user-select: none;
+  border-radius: 6px;
+  padding: 2px 4px 2px 2px;
+  transition: background-color 0.15s;
+  cursor: pointer;
+}
+
+.titleArea:hover {
+  background-color: var(--ss-hover-bg);
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ss-title-color);
+  user-select: none;
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--ss-icon-color);
+  transition: transform 0.2s ease;
+  transform: rotate(90deg);
+}
+
+.chevron svg {
+  width: 16px;
+  height: 16px;
+}
+
+.collapsed .chevron {
+  transform: rotate(0deg);
+}
+
+.collapsed .list {
+  display: none;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.headerBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--ss-icon-color);
+  padding: 0;
+  transition: background-color 0.2s;
+}
+
+.headerBtn:hover {
+  background-color: var(--ss-hover-bg);
+}
+
+.helpBtn {
+  opacity: var(--ss-inline-icon-opacity);
+  transition: opacity 0.2s, background-color 0.2s;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+}
+
+.helpBtn:hover {
+  opacity: var(--ss-inline-icon-hover-opacity);
+}
+
+/* 设置按钮（原 .ait-ss-settings-btn，紧随帮助按钮）。 */
+.settingsBtn {
+  opacity: var(--ss-inline-icon-opacity);
+  transition: opacity 0.2s, background-color 0.2s;
+  width: 22px;
+  height: 22px;
+  margin-left: 0;
+}
+
+.settingsBtn:hover {
+  opacity: var(--ss-inline-icon-hover-opacity);
+}
+
+.empty {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--ss-empty-color);
+  text-align: center;
+}
+
+/* ==== 文件夹（原 .ait-folder-*） ==== */
+.folderHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 36px 6px 12px;
+  border-radius: 18px;
+  transition: background 0.2s;
+  cursor: pointer;
+  position: relative;
+}
+
+.folderHeader:hover {
+  background: var(--folder-header-hover-bg);
+}
+
+.folderToggle {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  color: var(--folder-toggle-color);
+}
+
+.folderToggle svg {
+  width: 17px;
+  height: 17px;
+  transition: transform 0.2s ease;
+  color: currentColor;
+}
+
+.folderToggleExpanded svg {
+  transform: rotate(90deg);
+}
+
+.folderInfo {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.folderIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.folderIcon svg {
+  width: 100%;
+  height: 100%;
+  color: var(--folder-icon-color);
+}
+
+.folderName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--folder-name-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folderActions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.folderActionBtn {
+  display: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.folderHeader:hover .folderActionBtn {
+  display: flex;
+}
+
+.folderActionBtn svg {
+  width: 16px;
+  height: 16px;
+  color: var(--folder-action-color);
+}
+
+.folderActionBtn:hover {
+  background: var(--folder-action-hover-bg);
+}
+
+.folderActionBtn:hover svg {
+  color: var(--folder-action-hover-color);
+}
+
+.folderActionBtn:active {
+  transform: scale(0.95);
+}
+
+.folderContent {
+  display: none;
+  padding-left: 24px;
+}
+
+.folderContentExpanded {
+  display: block;
+}
+
+/* 置顶标识（hover 时隐藏换成三个点） */
+.pinIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.pinIndicator svg {
+  width: 14px;
+  height: 14px;
+}
+
+.folderHeader:hover .pinIndicator,
+.item:hover .pinIndicator {
+  display: none;
+}
+
+/* 默认文件夹不显示操作按钮 */
+.defaultFolder .folderActions {
+  display: none !important;
+}
+
+/* ==== 收藏项（原 .timeline-starred-item） ==== */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 36px 6px 12px;
+  margin-bottom: 2px;
+  border-radius: 18px;
+  background: transparent;
+  border: 1px solid transparent;
+  position: relative;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--item-hover-bg);
+}
+
+/* 页面级收藏激活：整行高亮 */
+.item.itemActive:not(.itemNode) {
+  background: var(--item-active-bg);
+}
+
+.item.itemActive:not(.itemNode) .itemName {
+  color: var(--item-active-color);
+}
+
+.item.itemActive:not(.itemNode):hover {
+  background: var(--item-active-hover-bg);
+}
+
+/* 节点级收藏激活：仅三角角标 */
+.itemActiveMarker {
+  flex-shrink: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--item-active-marker-color);
+  margin-right: -4px;
+}
+
+.itemActiveMarker svg {
+  display: block;
+}
+
+.item.itemNode.itemActive .itemActiveMarker {
+  display: flex;
+}
+
+.itemLogo {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.itemLogo svg {
+  color: var(--item-icon-color);
+}
+
+.itemLogo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.itemName {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--item-name-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.itemName:hover {
+  color: var(--item-name-hover-color);
+}
+
+.itemActions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.itemMore {
+  display: none;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.item:hover .itemMore {
+  display: flex;
+}
+
+.itemMore svg {
+  width: 16px;
+  height: 16px;
+  color: var(--item-action-color);
+}
+
+.itemMore:hover {
+  background-color: var(--item-action-hover-bg);
+}
+
+.itemMore:hover svg {
+  color: var(--item-action-hover-color);
+}
+
+.itemMore:active {
+  transform: scale(0.95);
+}
+
+/* ==== 拖拽（原 ait-drag-* / ait-item-drop-*） ==== */
+.dragging {
+  opacity: 0.35;
+}
+
+.folderItem {
+  position: relative;
+}
+
+.folderItem.dragOver {
+  background: var(--folder-drag-over-bg);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1.5px var(--folder-drag-over-border);
+}
+
+.folderItem.dropBefore > .folderHeader::before,
+.folderItem.dropAfter > .folderHeader::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  background: var(--folder-drop-line-color);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.folderItem.dropBefore > .folderHeader::before {
+  top: -1px;
+}
+
+.folderItem.dropAfter > .folderHeader::after {
+  bottom: -1px;
+}
+
+.item.itemDropBefore::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -1px;
+  width: 8px;
+  height: 8px;
+  background: var(--item-drop-line-color);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.item.itemDropBefore::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 8px;
+  right: 0;
+  height: 2px;
+  background: var(--item-drop-line-color);
+  border-radius: 0 1px 1px 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.item.itemDropAfter::before {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: -1px;
+  width: 8px;
+  height: 8px;
+  background: var(--item-drop-line-color);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.item.itemDropAfter::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 8px;
+  right: 0;
+  height: 2px;
+  background: var(--item-drop-line-color);
+  border-radius: 0 1px 1px 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* 自定义拖拽时抑制 hover */
+.root[data-dragging='true'] .item:hover,
+.root[data-dragging='true'] .folderHeader:hover {
+  background: transparent !important;
+}
+
+.root[data-dragging='true'] .item:hover .itemMore,
+.root[data-dragging='true'] .folderHeader:hover .folderActionBtn {
+  display: none !important;
+}
+
+/* 拖拽幽灵（原 .ait-custom-drag-ghost） */
+.dragGhost {
+  position: fixed;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  max-width: 220px;
+  background: #fff;
+  border: 1.5px solid rgba(59, 130, 246, 0.4);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.95;
+}
+
+.dragGhost svg {
+  flex-shrink: 0;
+  color: #3b82f6;
+}
+
+.dragGhost span {
+  font: 500 13px/1.3 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.root[data-theme='dark'] .dragGhost {
+  background: #2a2a2a;
+  border-color: rgba(96, 165, 250, 0.45);
+  box-shadow: 0 6px 20px rgba(96, 165, 250, 0.1), 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.root[data-theme='dark'] .dragGhost svg {
+  color: #60a5fa;
+}
+
+.root[data-theme='dark'] .dragGhost span {
+  color: #e5e7eb;
+}
+
+/* ==== 侧栏脚触发按钮 ==== */
+.footerBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--ss-icon-color, #444746);
+  padding: 0;
+  transition: background-color 0.2s;
+}
+
+.footerBtn:hover {
+  background-color: var(--ss-hover-bg, rgba(68, 71, 70, 0.08));
+}
+
+/* ==== 文件夹编辑弹窗（原 folder-edit-modal） ==== */
+.femOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 2147483648;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: auto;
+}
+
+.femOverlay.femVisible {
+  opacity: 1;
+}
+
+.fem {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 400px;
+  animation: femSlideIn 0.3s ease;
+}
+
+.root[data-theme='dark'] .fem {
+  background: #2a2a2a;
+}
+
+@keyframes femSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.femHeader {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.root[data-theme='dark'] .femHeader {
+  border-bottom-color: #404040;
+}
+
+.femHeader h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.root[data-theme='dark'] .femHeader h3 {
+  color: #f3f4f6;
+}
+
+.femBody {
+  padding: 20px 24px;
+}
+
+.femInputRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+.femIconBtn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  transition: border-color 0.2s, background-color 0.2s;
+  padding: 0;
+}
+
+.femIconBtn:hover {
+  border-color: #9ca3af;
+  background-color: #f9fafb;
+}
+
+.femIconBtn:active {
+  transform: scale(0.95);
+}
+
+.root[data-theme='dark'] .femIconBtn {
+  background: #1a1a1a;
+  border-color: #404040;
+}
+
+.root[data-theme='dark'] .femIconBtn:hover {
+  border-color: #6b7280;
+  background-color: #252525;
+}
+
+.femInput {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #1f2937;
+  background: #ffffff;
+}
+
+.root[data-theme='dark'] .femInput {
+  background: #1a1a1a;
+  border-color: #404040;
+  color: #f3f4f6;
+}
+
+.femInput:hover {
+  border-color: #9ca3af;
+}
+
+.root[data-theme='dark'] .femInput:hover {
+  border-color: #6b7280;
+}
+
+.femInput:focus {
+  border-color: #000000;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.root[data-theme='dark'] .femInput:focus {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.femInput::placeholder {
+  color: #9ca3af;
+}
+
+.root[data-theme='dark'] .femInput::placeholder {
+  color: #6b7280;
+}
+
+.femFooter {
+  padding: 16px 24px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.root[data-theme='dark'] .femFooter {
+  border-top-color: #404040;
+}
+
+.femCancel,
+.femConfirm {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.femCancel {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.root[data-theme='dark'] .femCancel {
+  background: #404040;
+  color: #d1d5db;
+}
+
+.femCancel:hover {
+  background: #e5e7eb;
+}
+
+.root[data-theme='dark'] .femCancel:hover {
+  background: #4b5563;
+}
+
+.femConfirm {
+  background: #000000;
+  color: #ffffff;
+}
+
+.root[data-theme='dark'] .femConfirm {
+  background: #ffffff;
+  color: #000000;
+}
+
+.femConfirm:hover {
+  background: #1f1f1f;
+}
+
+.root[data-theme='dark'] .femConfirm:hover {
+  background: #e5e7eb;
+}
+
+.femConfirm:active {
+  transform: scale(0.95);
+}
+
+/* ==== 图标选择器（原 folder-icon-picker，改为锚定弹层） ==== */
+.iconPicker {
+  position: absolute;
+  top: 46px;
+  left: 0;
+  width: 284px;
+  z-index: 10;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background-color: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.root[data-theme='dark'] .iconPicker {
+  background-color: #27272a;
+  color: #e5e7eb;
+  border-color: #3f3f46;
+}
+
+.iconPickerTabs {
+  display: flex;
+  gap: 2px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.iconPickerTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.iconPickerTab {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  color: inherit;
+  opacity: 0.6;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+.iconPickerTab:hover {
+  opacity: 0.85;
+  background-color: rgba(128, 128, 128, 0.1);
+}
+
+.iconPickerTab.iconPickerTabActive {
+  opacity: 1;
+  background-color: rgba(128, 128, 128, 0.15);
+}
+
+.iconGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+
+.iconItem {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  user-select: none;
+  border: 2px solid transparent;
+}
+
+.iconItem:hover {
+  background-color: rgba(128, 128, 128, 0.15);
+}
+
+.iconItem.iconItemSelected {
+  background-color: rgba(128, 128, 128, 0.2);
+  border-color: currentColor;
+}
+
+@media (max-width: 480px) {
+  .fem {
+    width: 95%;
+    max-width: none;
+  }
+
+  .femHeader,
+  .femBody,
+  .femFooter {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .iconPicker {
+    width: 240px;
+  }
+
+  .iconGrid {
+    grid-template-columns: repeat(7, 1fr);
+  }
+}
