@@ -5,6 +5,7 @@
  * 原按平台分键的设置折叠为单布尔。localStorage + Bus + storage 事件跨标签页同步。
  */
 import { Bus } from '../ui/bus.ts'
+import { DEFAULT_ACTIVE_COLOR_ID } from './palette.ts'
 
 /** 智能回车发送模式（原 SMART_ENTER_MODES）。 */
 export type SmartEnterMode = 'doubleEnter' | 'ctrlEnter' | 'shiftEnter'
@@ -23,7 +24,7 @@ export interface PluginSettings {
   readonly preventAutoScrollEnabled: boolean
   /** 追问功能开关（原 quickAskEnabled !== false，默认开）。 */
   readonly quickAskEnabled: boolean
-  /** 时间轴激活色 id（原 timelineActiveColors[platform]，deepseek 默认 blue）。 */
+  /** 时间轴激活色 id（原 timelineActiveColors[platform]，默认调色板第一项 black）。 */
   readonly activeColorId: string
   /** 对话导出开关（原 conversationExportPlatformSettings[id] !== false，默认开）。 */
   readonly conversationExportEnabled: boolean
@@ -56,7 +57,7 @@ const DEFAULTS: PluginSettings = {
   smartEnterToastCount: 0,
   preventAutoScrollEnabled: true,
   quickAskEnabled: true,
-  activeColorId: 'blue',
+  activeColorId: DEFAULT_ACTIVE_COLOR_ID,
   conversationExportEnabled: true,
   chatTimeLabelEnabled: true,
   notepadEnabled: true,

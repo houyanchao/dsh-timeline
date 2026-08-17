@@ -1,12 +1,15 @@
 /**
  * 提示词按钮 + 下拉面板：移植原 PromptButtonManager + prompt-dropdown-ui。
- * 按钮坐在 DSH composer 工具行（conversation.input.left 槽位），
+ * 按钮坐在 DSH composer 工具行、紧挨宿主「命令」按钮右侧：
+ * conversation.input.left 槽位只渲染在常驻控件之后，宿主没有命令与权限
+ * 之间的槽位，故挂槽位借生命周期，本体 portal 到手动插在命令按钮后的容器
+ * （useCommandSideSeat）。
  * 点击弹出固定尺寸（320x400）向上展开的下拉：提示词 Tab（搜索/列表/空态）
  * + 常用设置 Tab（反馈、GitHub Star、AI 完成提醒、阻止跳底开关、换行发送设置）。
  * 点提示词把内容追加进输入框草稿（原 _defaultInsertText 的 textarea 分支）。
  * 同组件挂载智能回车（useSmartEnter）与发送后防跳底（usePreventAutoScroll）。
  */
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -28,8 +31,8 @@ const TOP_PADDING = 20
 const GAP = 8
 
 /** GitHub 仓库（原插件商店链接在 DSH 下统一指向 GitHub）。 */
-const GITHUB_URL = 'https://github.com/houyanchao/chatgpt-gemini-timeline'
-const FEEDBACK_URL = 'https://github.com/houyanchao/chatgpt-gemini-timeline/issues'
+const GITHUB_URL = 'https://github.com/houyanchao/dsh-timeline'
+const FEEDBACK_URL = 'https://github.com/houyanchao/dsh-timeline/issues'
 
 /** composer 的 textarea（草稿插入后聚焦/滚动用）。 */
 const INPUT_SELECTOR = '[data-input-scroll] textarea'
@@ -43,6 +46,65 @@ function appendPromptText(existingText: string, text: string): string {
   if (existingText.trim() === '') return `${text}\n\n`
   const cleanedText = existingText.replace(/\n+$/, '')
   return `${cleanedText}\n\n${text}\n\n`
+}
+
+/** 宿主「命令」按钮（工具行里唯一的 listbox 弹出按钮，InputBar 的 .add）。 */
+const COMMAND_BTN_SELECTOR = 'button[aria-haspopup="listbox"]'
+
+/**
+ * 提示词库 tooltip 配色：单套固定形态，直接引宿主原生 tooltip 的 token
+ * （ui-primitives Tooltip 的深色底板 + 恒白文字；边框取底色即隐形）。
+ */
+const LIBRARY_TIP_COLOR = {
+  backgroundColor: 'var(--dsw-alias-tooltip-bg)',
+  textColor: 'var(--dsw-static-neutral-bluish-00)',
+  borderColor: 'var(--dsw-alias-tooltip-bg)',
+} as const
+
+/**
+ * 在【命令】按钮紧邻右侧造一个 portal 挂载座。
+ * 容器 display: contents，两个按钮直接成为工具行的 flex 项、
+ * 吃行自己的 16px 间距；行卸载（会话切换）时本组件同月同灭，
+ * 清理函数移除容器即可。
+ * @param markerRef - 渲染在槽位里的隐藏锚点，向上定位工具行。
+ * @param enabled - 按钮是否启用（关闭时锚点不渲染，需重建）。
+ * @returns 挂载座；定位不到命令按钮时为 null（调用方就地渲染兜底）。
+ */
+function useCommandSideSeat(markerRef: RefObject<HTMLElement | null>, enabled: boolean): HTMLElement | null {
+  const [seat, setSeat] = useState<HTMLElement | null>(null)
+
+  useLayoutEffect(() => {
+    if (!enabled) return
+    const marker = markerRef.current
+    if (marker === null) return
+
+    // 槽位条目外面有宿主的包装节点，从锚点向上找到包含命令按钮的工具行。
+    let tools: HTMLElement | null = marker.parentElement
+    while (tools !== null && tools.querySelector(COMMAND_BTN_SELECTOR) === null) {
+      tools = tools.parentElement
+    }
+    const commandBtn = tools?.querySelector(COMMAND_BTN_SELECTOR) ?? null
+    if (tools === null || commandBtn === null) return
+
+    // 命令按钮理论上可能被再包一层，锚定到工具行的直接子节点。
+    let anchorTop: Element = commandBtn
+    while (anchorTop.parentElement !== null && anchorTop.parentElement !== tools) {
+      anchorTop = anchorTop.parentElement
+    }
+
+    const container = document.createElement('div')
+    container.style.display = 'contents'
+    tools.insertBefore(container, anchorTop.nextSibling)
+    setSeat(container)
+    return () => {
+      container.remove()
+      setSeat(null)
+    }
+    // markerRef 是稳定引用，不入依赖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled])
+
+  return seat
 }
 
 /** 完整 props：输入工具行槽位运行时 + 词典。 */
@@ -68,8 +130,11 @@ export function PromptButton({ useInput, useSession, inputActions, t }: PromptBu
 
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const markerRef = useRef<HTMLSpanElement>(null)
   const draftRef = useRef(draft)
   draftRef.current = draft
+
+  const seat = useCommandSideSeat(markerRef, settings.promptButtonEnabled)
 
   // 智能回车：随本组件（composer 存在期）挂载。
   useSmartEnter((mode) => {
@@ -100,26 +165,44 @@ export function PromptButton({ useInput, useSession, inputActions, t }: PromptBu
 
   if (!settings.promptButtonEnabled) return null
 
-  return (
+  const buttons = (
     <>
       {/* 版本更新 Logo（原提示词按钮左侧的 smart-input-update-btn，有未读更新时显示） */}
-      <UpdateLogoButton t={t} dark={dark} />
+      <UpdateLogoButton t={t} />
       <button
         ref={btnRef}
         type="button"
         className={css.promptBtn}
-        data-theme={dark ? 'dark' : 'light'}
-        aria-label={t('prompt.title')}
+        aria-label={t('prompt.tooltipLibrary')}
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
+          tooltip.hide(true)
           setOpen(v => !v)
         }}
+        onMouseEnter={(e) => {
+          tooltip.show('prompt-btn-library', e.currentTarget, t('prompt.tooltipLibrary'), {
+            placement: 'top',
+            showDelay: 300,
+            noArrow: true,
+            size: 'small',
+            color: LIBRARY_TIP_COLOR,
+          })
+        }}
+        onMouseLeave={() => { tooltip.hide() }}
       >
         <svg className={css.promptIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
         </svg>
       </button>
+    </>
+  )
+
+  return (
+    <>
+      {/* 隐藏锚点：只用来定位工具行（本体 portal 到命令按钮右侧的挂载座）。 */}
+      <span ref={markerRef} hidden />
+      {seat !== null ? createPortal(buttons, seat) : buttons}
       {open
         ? (
           <PromptDropdown
@@ -208,7 +291,9 @@ function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, on
     : sorted.filter(p => p.name.toLowerCase().includes(q) || p.content.toLowerCase().includes(q))
 
   const openManage = (): void => {
-    tooltip.hide(true)
+    // 「+」图标 hover 中的「添加提示词」mini tooltip（showOverlay）靠 mouseleave
+    // 关闭，而点击后下拉整体卸载、mouseleave 不再触发，须在此强清两条总线。
+    tooltip.forceHideAll()
     onClose()
     panelModal.show('prompt')
   }
@@ -258,7 +343,8 @@ function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, on
                 aria-label={t('prompt.allSettings')}
                 onClick={(e) => {
                   e.stopPropagation()
-                  tooltip.hide(true)
+                  // 同 openManage：「全部设置」mini tooltip 随下拉卸载后无 mouseleave 兜底，须强清。
+                  tooltip.forceHideAll()
                   onClose()
                   panelModal.show('timeline')
                 }}

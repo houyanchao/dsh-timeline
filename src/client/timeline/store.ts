@@ -10,8 +10,6 @@ export interface StarRecord {
 
 /** 时间轴 UI 状态。 */
 export interface TimelineState {
-  /** 时间轴功能开关（会话头部按钮，默认开启）。 */
-  visible: boolean
   /** 时间轴收起状态（右缘折叠按钮，对应原扩展 _aitTimelineCollapsed）。 */
   collapsed: boolean
 }
@@ -22,10 +20,9 @@ export interface TimelineState {
  */
 export function createTimelineStore() {
   return defineStore({
-    init: (): TimelineState => ({ visible: true, collapsed: false }),
+    init: (): TimelineState => ({ collapsed: false }),
     persist: 'dsh.timeline',
     actions: {
-      setVisible: (draft, visible: boolean) => { draft.visible = visible },
       setCollapsed: (draft, collapsed: boolean) => { draft.collapsed = collapsed },
     },
   })

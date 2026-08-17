@@ -3,94 +3,57 @@
    （移植原 prompt-button.css + panelModal/tabs/prompt/styles.css 下拉部分）
    ============================================ */
 
-/* ==== 提示词按钮（原 .smart-input-prompt-btn；DSH 下坐在 composer 工具行） ==== */
+/* ==== 提示词按钮（原 .smart-input-prompt-btn）。
+   坐在 composer 工具行，与宿主「命令」按钮（InputBar.module.css 的 .add）同款：
+   28px 圆形、宿主 token 配色，深浅主题由 token 自身切换，不再自带调色板 ==== */
 .promptBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
+  flex: none;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border: none;
+  border-radius: 999px;
+  padding: 0;
+  background: var(--dsw-specific-selector);
+  color: var(--dsw-alias-label-primary);
   cursor: pointer;
   user-select: none;
-  transition: all 0.15s ease;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #374151;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.06);
-  border: none;
-  padding: 0;
-  animation: prompt-btn-appear 0.15s ease-out;
+  /* 工具行 .tools 的 flex gap 是 16px，对图标按钮太松：
+     左收到 8px；右邻的权限胶囊自带 8px 透明内边距（视觉空隙 16+8），
+     多收一点让视觉间距也接近 8px（-12 基础上按反馈再收 2px）。 */
+  margin-left: -8px;
+  margin-right: -14px;
 }
 
-.promptBtn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  color: #4f46e5;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.1),
-    0 2px 4px rgba(0, 0, 0, 0.06),
-    inset 0 0 0 1px rgba(79, 70, 229, 0.25);
-}
-
-.promptBtn:active {
-  opacity: 0.8;
-}
-
-.promptBtn[data-theme='dark'] {
-  background: rgba(55, 65, 81, 0.9);
-  color: #e5e7eb;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.2),
-    0 1px 2px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.promptBtn[data-theme='dark']:hover {
-  background: rgba(75, 85, 99, 0.95);
-  color: #818cf8;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.25),
-    0 2px 4px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(129, 140, 248, 0.25);
+.promptBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-solid);
 }
 
 .promptIcon {
-  width: 16px;
-  height: 16px;
+  /* 与「命令」按钮的 IconPlusOutline16 size={14} 同尺寸。 */
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
-  stroke-width: 2;
 }
 
-@keyframes prompt-btn-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* ==== 遮罩层 ==== */
+/* ==== 遮罩层
+   下拉 portal 在 body 下，z-index 须低于宿主 shell.overlay 层
+   （AppFrame .overlayLayer 的 20），否则会盖住 tooltip/toast 等全部
+   插件浮层；同时须高于同为 body 直挂的时间轴（15/16）。 ==== */
 .overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 9998;
+  z-index: 17;
 }
 
-/* ==== 下拉面板容器 ==== */
+/* ==== 下拉面板容器（层级约束同上方遮罩） ==== */
 .container {
   position: fixed;
-  z-index: 9999;
+  z-index: 18;
   display: flex;
   flex-direction: column;
   background: #ffffff;

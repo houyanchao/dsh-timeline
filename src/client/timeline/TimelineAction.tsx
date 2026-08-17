@@ -4,7 +4,7 @@
  * 数据全部来自 useSession 的 Chat 快照（无 DOM 爬取），
  * 显隐/折叠偏好与收藏标记走会话级持久化 store。
  */
-import { useMemo, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime, PropsStore, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ChatNodeStore } from '@deepseek-ai/dsh-client-runtime/client'
@@ -21,9 +21,9 @@ import { starEditModal } from './StarModal.tsx'
 import type { TimelineItem } from './TimelineBar.tsx'
 import css from './timeline.module.css'
 
-/** 整会话收藏 toast 配色（原 toggleChatStar 的 toastColor）。 */
+/** 整会话收藏 toast 配色（原 toggleChatStar 的 toastColor；黑底改取宿主 tooltip 底板 token）。 */
 const CHAT_STAR_TOAST_COLOR = {
-  light: { backgroundColor: '#0d0d0d', textColor: '#ffffff', borderColor: '#262626' },
+  light: { backgroundColor: 'var(--dsw-alias-tooltip-bg)', textColor: '#ffffff', borderColor: 'var(--dsw-alias-tooltip-bg)' },
   dark: { backgroundColor: '#ffffff', textColor: '#1f2937', borderColor: '#d1d5db' },
 }
 
@@ -35,6 +35,34 @@ export type TimelineActionProps =
 
 /** 计入时间轴的用户输入节点类别（提问 + 轮中追问）。 */
 const USER_KINDS = new Set(['user', 'steering'])
+
+/**
+ * ChatView 的消息列容器：唯一随对话视图卸载的稳定标记。
+ * 注意不能用 [data-conversation-scroll]——那是 ConversationRoot 的常驻
+ * 滚动骨架（包着视图区和输入框），切 tab 也不消失。
+ */
+const CHAT_VIEW_SELECTOR = '[data-chat-flow]'
+
+/**
+ * 对话视图是否在场。宿主的视图 ring 只渲染激活 tab
+ * （ConversationSession 的 renderSlot only），切到「轨迹」等其他 tab 时
+ * ChatView 整体卸载；本组件挂在会话头部（两个 tab 下都在），
+ * 时间轴 portal 到 body，需要据此被动隐藏。
+ * 宿主的视图选择存在它自己的槽位 store 里，插件拿不到，退而观察 DOM。
+ * @returns ChatView 消息列是否存在。
+ */
+function useChatViewPresent(): boolean {
+  const [present, setPresent] = useState(() => document.querySelector(CHAT_VIEW_SELECTOR) !== null)
+  useEffect(() => {
+    // 状态不变时 setState 由 React 自动跳过，观察全量 DOM 变更开销可接受。
+    const check = (): void => { setPresent(document.querySelector(CHAT_VIEW_SELECTOR) !== null) }
+    check()
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => { observer.disconnect() }
+  }, [])
+  return present
+}
 
 /** 与 user/steering 节点 data 对齐的最小读取形态。 */
 interface UserLikeData {
@@ -71,8 +99,8 @@ export function TimelineAction({ sessionId, useSession, useSessions, useStore, a
   const order = useSession(s => s.chat.order)
   const nodes = useSession(s => s.chat.nodes)
   const running = useSession(s => s.running)
-  const visible = useStore(s => s.visible)
   const collapsed = useStore(s => s.collapsed)
+  const chatViewPresent = useChatViewPresent()
   const displayTitle = useSessions(s => s.byId[sessionId]?.displayTitle)
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
 
@@ -128,29 +156,13 @@ export function TimelineAction({ sessionId, useSession, useSessions, useStore, a
     })
   }
 
-  // 显示时间轴总开关（原 timelinePlatformSettings[id] === false 时整体禁用）。
+  // 显示时间轴总开关（设置面板控制，头部不再放显隐按钮）。
   if (!settings.timelineEnabled) return null
 
-  const toggleLabel = visible ? t('toggle.hide') : t('toggle.show')
   const chatStarLabel = chatStarred ? t('starred.unstar') : t('starred.starChat')
 
   return (
     <>
-      <button
-        type="button"
-        className={visible ? `${css.headerBtn} ${css.headerBtnOn}` : css.headerBtn}
-        title={toggleLabel}
-        aria-label={toggleLabel}
-        aria-pressed={visible}
-        onClick={() => { actions.setVisible(!visible) }}
-      >
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <line x1="12" y1="3" x2="12" y2="21" />
-          <circle cx="12" cy="6.5" r="2.4" fill="currentColor" stroke="none" />
-          <circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" />
-          <circle cx="12" cy="17.5" r="2.4" fill="currentColor" stroke="none" />
-        </svg>
-      </button>
       {/* 整会话收藏按钮（原 ait-timeline-star-chat-btn-native） */}
       <button
         type="button"
@@ -179,8 +191,9 @@ export function TimelineAction({ sessionId, useSession, useSessions, useStore, a
         >
           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
         </svg>
+        <span>{t('starred.starChatLabel')}</span>
       </button>
-      {visible && items.length > 0
+      {chatViewPresent && items.length > 0
         ? createPortal(
             <TimelineRoot
               sessionId={sessionId}

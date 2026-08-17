@@ -5,8 +5,8 @@
  */
 import { Bus } from '../ui/bus.ts'
 
-/** 设置面板 Tab（原 panelModal tabs 目录中迁移到 DSH 的部分）。 */
-export type PanelTab = 'timeline' | 'starred' | 'prompt' | 'smartInputBox' | 'formula' | 'export' | 'dataSync'
+/** 设置面板 Tab（原 panelModal tabs 目录中迁移到 DSH 的部分 + about）。 */
+export type PanelTab = 'about' | 'timeline' | 'starred' | 'prompt' | 'smartInputBox' | 'formula' | 'export' | 'dataSync'
 
 /** Tab 内深链子目标（原 TimelineSettingsTab.showAICompleteReminderModal 直开子弹窗）。 */
 export type PanelSub = 'aiCompleteReminder'

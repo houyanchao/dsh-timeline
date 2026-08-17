@@ -1604,6 +1604,140 @@
   flex-shrink: 0;
 }
 
+/* ============================================
+   关于插件 tab（移植原 tabs/about/styles.css）
+   ============================================ */
+
+.aboutTab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 分享操作按钮组（原 .about-share-actions；置于 tab 顶部，无负边距补偿） */
+.aboutShareActions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.aboutShareActionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  box-sizing: border-box;
+  width: 132px;
+  flex: none;
+  padding: 7px 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef0f4 50%, #e2e5eb 100%);
+  border: 1px solid #c5c8d0;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2d2d34;
+  text-decoration: none;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff, inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+}
+
+.aboutShareActionBtn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f3f4f8 50%, #e8eaef 100%);
+  border-color: #adb1bc;
+  color: #111118;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), inset 0 1px 0 #ffffff, inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.aboutShareActionBtn:active {
+  background: linear-gradient(180deg, #eef0f4 0%, #e2e5eb 100%);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 区块（原 .about-section） */
+.aboutSection {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 10px;
+  align-items: flex-start;
+}
+
+.aboutSectionIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+}
+
+.aboutSectionBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.aboutSectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.aboutSectionContent {
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.7;
+}
+
+/* 反馈渠道块（原 .about-feedback-blocks；邮件项为 button，需重置原生样式） */
+.aboutFeedbackBlocks {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.aboutFeedbackBlock {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.aboutFeedbackBlock:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.aboutFeedbackBlock svg {
+  color: #6b7280;
+}
+
+.aboutFeedbackBlock:hover svg {
+  color: #374151;
+}
+
 /* ==================== 子弹窗深色覆盖（原 timeline/styles.css 的 html[data-timeline-theme="dark"] 段，
    由 UiHost 宿主容器的 data-theme 驱动） ==================== */
 

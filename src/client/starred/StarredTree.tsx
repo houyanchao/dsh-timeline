@@ -63,7 +63,8 @@ const FOLDER_TOAST_OPTIONS = {
   position: 'right' as const,
   gap: 6,
   color: {
-    light: { backgroundColor: '#0d0d0d', textColor: '#ffffff', borderColor: '#0d0d0d' },
+    // 黑底统一取宿主原生 tooltip 的底板 token。
+    light: { backgroundColor: 'var(--dsw-alias-tooltip-bg)', textColor: '#ffffff', borderColor: 'var(--dsw-alias-tooltip-bg)' },
     dark: { backgroundColor: '#ffffff', textColor: '#1f2937', borderColor: '#e5e7eb' },
   },
 }

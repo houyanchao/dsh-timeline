@@ -257,8 +257,10 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
   const theme = dark ? 'dark' : 'light'
 
   // 激活色（原 timelineActiveColors[platform] → CSS 变量注入）。
+  // 仅浅色主题生效：深色下用户选色（尤其黑色）容易沉进背景，
+  // 不注入、统一走样式表深色档的固定激活色。
   const activeEntry = ACTIVE_COLOR_PALETTE.find(entry => entry.id === settings.activeColorId)
-  const activeColorStyle = activeEntry !== undefined
+  const activeColorStyle = !dark && activeEntry !== undefined
     ? { '--tl-dot-active-color': paletteEntryToCss(activeEntry) } as React.CSSProperties
     : undefined
 
@@ -271,20 +273,6 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
         onPointerEnter={onWrapperEnter}
         onPointerLeave={onWrapperLeave}
       >
-        <button
-          type="button"
-          className={listOpen ? `${css.questionListBtn} ${css.questionListBtnActive}` : css.questionListBtn}
-          title={t('list.open')}
-          aria-label={t('list.open')}
-          aria-pressed={listOpen}
-          onPointerDown={(event) => { event.stopPropagation() }}
-          onClick={() => { setListOpen(open => !open) }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
-            <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-          </svg>
-        </button>
         {listOpen
           ? (
             <QuestionListPanel
@@ -313,6 +301,21 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
               t={t}
             />
           )}
+        {/* 问题列表按钮（原 ait-question-list-btn：位于轴条下方、闪记按钮之上） */}
+        <button
+          type="button"
+          className={listOpen ? `${css.questionListBtn} ${css.questionListBtnActive}` : css.questionListBtn}
+          title={t('list.open')}
+          aria-label={t('list.open')}
+          aria-pressed={listOpen}
+          onPointerDown={(event) => { event.stopPropagation() }}
+          onClick={() => { setListOpen(open => !open) }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+          </svg>
+        </button>
         {/* 闪记入口按钮（原 ait-notepad-btn：位于轴条下方，开关控制显隐） */}
         {settings.notepadEnabled ? <NotepadButton t={t} /> : null}
       </div>

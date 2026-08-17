@@ -1,7 +1,7 @@
 /**
  * 激活色调色板（原 global/constants.js 的 ACTIVE_COLOR_PALETTE）：
  * 时间轴激活节点颜色与导出图片主题色共享同一来源。
- * DSH（deepseek）平台默认激活色为 blue。
+ * 默认激活色为调色板第一项 black。
  */
 
 /** 一个调色板条目：纯色或 135° 线性渐变。 */
@@ -24,8 +24,8 @@ export const ACTIVE_COLOR_PALETTE: readonly PaletteEntry[] = [
   },
 ]
 
-/** deepseek 平台默认激活色（原 TIMELINE_ACTIVE_COLOR_DEFAULT_BY_PLATFORM.deepseek）。 */
-export const DEFAULT_ACTIVE_COLOR_ID = 'blue'
+/** 默认激活色：调色板第一项黑色（原 deepseek 平台默认为 blue，经确认改为 black）。 */
+export const DEFAULT_ACTIVE_COLOR_ID = 'black'
 
 /**
  * 调色板条目 → CSS color 值（原 activeColorPaletteToCss）。

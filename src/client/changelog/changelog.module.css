@@ -320,52 +320,26 @@
 
 /* ==================== 更新 Logo 按钮（原 .smart-input-update-btn） ==================== */
 
+/* 与提示词按钮、宿主「命令」按钮（InputBar.module.css 的 .add）同款圆形底座。 */
 .updateBtn {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* 原版与提示词按钮同尺寸（32px）；DSH composer 行内提示词按钮为 28px，保持两钮一致 */
+  display: grid;
+  place-items: center;
+  flex: none;
   width: 28px;
   height: 28px;
   border: none;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 999px;
+  background: var(--dsw-specific-selector);
   cursor: pointer;
   user-select: none;
-  transition: all 0.15s ease;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.06);
-  animation: updateBtnAppear 0.15s ease-out;
+  /* 与提示词按钮同理：把工具行 16px 的 flex gap 收到 8px。 */
+  margin-left: -8px;
 }
 
-/* 出现动画（原 prompt-btn-appear） */
-@keyframes updateBtnAppear {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.updateBtn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.1),
-    0 2px 4px rgba(0, 0, 0, 0.06),
-    inset 0 0 0 1px rgba(97, 40, 255, 0.25);
-}
-
-.updateBtn:active {
-  opacity: 0.8;
+.updateBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-solid);
 }
 
 .updateLogo {
@@ -379,13 +353,14 @@
 
 .updateDot {
   position: absolute;
-  top: 1px;
-  right: 1px;
+  top: -1px;
+  right: -1px;
   width: 10px;
   height: 10px;
   background: #ef4444;
   border-radius: 50%;
-  border: 1.5px solid #ffffff;
+  /* 描边取按钮底色，红点才像贴在按钮上而不是浮在卡片上。 */
+  border: 1.5px solid var(--dsw-specific-selector);
 }
 
 /* ==================== Dark Mode ==================== */
@@ -482,25 +457,4 @@
 .root[data-theme='dark'] .confirmBtn:hover {
   background: #ffffff;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-}
-
-/* 更新按钮深色模式（原 prompt-button.css 深色分支） */
-.updateBtnDark {
-  background: rgba(55, 65, 81, 0.9);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.2),
-    0 1px 2px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.updateBtnDark:hover {
-  background: rgba(75, 85, 99, 0.95);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.25),
-    0 2px 4px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(129, 140, 248, 0.25);
-}
-
-.updateBtnDark .updateDot {
-  border-color: rgba(55, 65, 81, 0.9);
 }

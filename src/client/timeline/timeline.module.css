@@ -34,14 +34,17 @@
 }
 
 .root[data-dsh-tl-theme='dark'] {
-  --tl-dot-color: #A0A0A0;
-  --tl-dot-active-color: #8B5CF6;
+  /* 原版 #A0A0A0，深底上略暗，提亮两档。 */
+  --tl-dot-color: #CCCCCC;
+  /* 深色主题的统一激活色（不随用户选色，TimelineRoot 深色下不注入）：
+     取宿主深色档的发送按钮蓝（--dsw-alias-button-info-fill 的 dark 值）。 */
+  --tl-dot-active-color: #679efe;
   --tl-star-color: #FB923C;
   --tl-active-ring: 4px;
   --tl-tooltip-bg: #27272a;
   --tl-tooltip-text: #e5e7eb;
   --tl-tooltip-border: #3f3f46;
-  --tl-bar-bg: rgba(45, 45, 48, 0.95);
+  --tl-bar-bg: #2c2c2c;
   --tl-toggle-color: #666;
   --tl-toggle-hover-bg: rgba(255, 255, 255, 0.08);
   --tl-toggle-hover-color: #999;
@@ -51,12 +54,14 @@
 
 /* ==== 包装容器（.ait-chat-timeline-wrapper）
    right 取原 DeepSeek adapter getTimelinePosition 注入的 22px
-   （原 CSS fallback 17px 被内联样式覆盖，实际渲染为 22px）。 ==== */
+   （原 CSS fallback 17px 被内联样式覆盖，实际渲染为 22px）。
+   z-index 须低于宿主 shell.overlay 层（AppFrame .overlayLayer 的 20）：
+   时间轴 portal 在 body 下，超过 20 会盖住设置面板等全部插件浮层。 ==== */
 .wrapper {
   position: fixed;
   top: 120px;
   right: 22px;
-  z-index: 30;
+  z-index: 15;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -70,12 +75,13 @@
   transform: translateX(20px);
 }
 
-/* ==== 折叠/展开按钮（.timeline-toggle-btn） ==== */
+/* ==== 折叠/展开按钮（.timeline-toggle-btn）
+   与 .wrapper 同理压在宿主 overlayLayer（20）之下。 ==== */
 .toggleBtn {
   position: fixed;
   top: 50%;
   right: 1px;
-  z-index: 31;
+  z-index: 16;
   width: 24px;
   height: 24px;
   border: none;
@@ -1121,22 +1127,24 @@
 }
 
 /* ==== 会话头部开关按钮（DSH 头部入口，保持简洁风格） ==== */
+/* 会话头部的收藏按钮：图标 + 文字，字号/间距对齐旁边的导出按钮（export.module.css 的 .exportBtn）。 */
 .headerBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 6px;
+  gap: 6px;
+  padding: 4px 8px;
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: #cfd3d6;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .headerBtn:hover {
   background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.headerBtnOn {
-  color: var(--dsw-alias-brand-primary);
 }

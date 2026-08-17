@@ -19,9 +19,9 @@ const HEALTH_CHECK_INTERVAL = 5000
 /** 换行提示 toast 的最大展示次数（原 _showNewlineToast 的 count >= 5）。 */
 const TOAST_MAX_COUNT = 5
 
-/** 换行提示 toast 配色（原 _showNewlineToast 的 color）。 */
+/** 换行提示 toast 配色（原 _showNewlineToast 的 color；黑底改取宿主 tooltip 底板 token）。 */
 const NEWLINE_TOAST_COLOR = {
-  light: { backgroundColor: '#0d0d0d', textColor: '#ffffff', borderColor: '#0d0d0d' },
+  light: { backgroundColor: 'var(--dsw-alias-tooltip-bg)', textColor: '#ffffff', borderColor: 'var(--dsw-alias-tooltip-bg)' },
   dark: { backgroundColor: '#ffffff', textColor: '#1f2937', borderColor: '#e5e7eb' },
 }
 

@@ -17,6 +17,13 @@ const BUTTON_COLORS = {
   dark: { backgroundColor: '#27272a', textColor: '#e5e7eb', borderColor: '#3f3f46' },
 } as const
 
+/** 单套 tooltip 配色。 */
+export interface TooltipColor {
+  readonly backgroundColor: string
+  readonly textColor: string
+  readonly borderColor: string
+}
+
 /** show 的可选配置。 */
 export interface TooltipOptions {
   readonly placement?: 'auto' | 'top' | 'bottom' | 'left' | 'right'
@@ -25,6 +32,13 @@ export interface TooltipOptions {
   readonly hideDelay?: number
   readonly gap?: number
   readonly noArrow?: boolean
+  /** 尺寸档位（控制内边距与字号），缺省 medium 即原始样式。 */
+  readonly size?: 'small' | 'medium' | 'large'
+  /**
+   * 自定义配色，缺省用 BUTTON_COLORS（原 show 的 color 形态）。
+   * 传 { light, dark } 按页面主题选用；直接传一套 TooltipColor 则不随主题、固定生效。
+   */
+  readonly color?: TooltipColor | { readonly light: TooltipColor; readonly dark: TooltipColor }
 }
 
 interface TooltipState {
@@ -283,7 +297,12 @@ export function TooltipHost({ dark }: { readonly dark: boolean }) {
     requestAnimationFrame(() => { el.classList.add(css.tooltipVisible) })
   }, [mini])
 
-  const colors = dark ? BUTTON_COLORS.dark : BUTTON_COLORS.light
+  const custom = tip?.options.color
+  const palette = custom === undefined
+    ? BUTTON_COLORS
+    // 单套形态（无 light 键）视为固定配色，两个主题共用。
+    : 'light' in custom ? custom : { light: custom, dark: custom }
+  const colors = dark ? palette.dark : palette.light
 
   return (
     <>
@@ -291,7 +310,12 @@ export function TooltipHost({ dark }: { readonly dark: boolean }) {
         ? (
           <div
             ref={tipRef}
-            className={tip.options.noArrow === true ? `${css.tooltipBase} ${css.tooltipNoArrow}` : css.tooltipBase}
+            className={[
+              css.tooltipBase,
+              tip.options.noArrow === true ? css.tooltipNoArrow : '',
+              tip.options.size === 'small' ? css.tooltipSmall : '',
+              tip.options.size === 'large' ? css.tooltipLarge : '',
+            ].filter(Boolean).join(' ')}
             role="tooltip"
             data-tooltip-theme={dark ? 'dark' : 'light'}
             style={{

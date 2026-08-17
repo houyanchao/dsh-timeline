@@ -22,7 +22,7 @@ const VERSION = '0.1.0'
 /** 展示的用户量（原 userCount 常量）。 */
 const USER_COUNT = '37,000+'
 const DOCS_URL = 'https://timeline4ai.com/#/guide?section=timeline'
-const GITHUB_URL = 'https://github.com/houyanchao/chatgpt-gemini-timeline'
+const GITHUB_URL = 'https://github.com/houyanchao/dsh-timeline'
 
 const openBus = new Bus<boolean>(false)
 
@@ -193,17 +193,18 @@ export function ChangelogHost({ t }: { readonly t: T }) {
  * 更新 Logo 按钮（原 _createUpdateButton：icon 模式且有未读更新时显示）。
  * 原版还要求 chatTimes 有使用记录才展示；DSH 无 chatTimes 存储
  * （节点时间来自宿主快照），该门控经确认有意去除。
- * @param props - 词典 + 深色标记。
+ * 配色走宿主 token（自带深浅两套值），故不需要主题入参。
+ * @param props - 词典。
  * @returns Logo 按钮或 null。
  */
-export function UpdateLogoButton({ t, dark }: { readonly t: T; readonly dark: boolean }) {
+export function UpdateLogoButton({ t }: { readonly t: T }) {
   useSyncExternalStore(changelogReadStore.subscribe, () => changelogReadStore.hasUpdate())
   if (CHANGELOG_DATA.displayMode !== 'icon' || !changelogReadStore.hasUpdate()) return null
 
   return (
     <button
       type="button"
-      className={dark ? `${css.updateBtn} ${css.updateBtnDark}` : css.updateBtn}
+      className={css.updateBtn}
       aria-label={t('changelog.updateBtn')}
       onClick={(e) => {
         e.preventDefault()

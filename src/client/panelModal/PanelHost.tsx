@@ -32,7 +32,7 @@ type T = TranslateNS<typeof NS>
 /** 插件版本（原 footer 显示 chrome.runtime.getManifest().version）。 */
 const VERSION = '0.1.0'
 /** 分享按钮跳转地址（原 _getStoreDetailUrl 的商店详情页；DSH 无商店，指向 GitHub）。 */
-const SHARE_URL = 'https://github.com/houyanchao/chatgpt-gemini-timeline'
+const SHARE_URL = 'https://github.com/houyanchao/dsh-timeline'
 
 /** PanelHost props（词典 + 收藏 tab 导航所需）。 */
 export interface PanelHostProps {
@@ -41,9 +41,9 @@ export interface PanelHostProps {
   readonly openSession: (sessionId: string) => void
 }
 
-/** 「标记重点」提示 toast 的黑白反色（原 TimelineSettingsTab 内联色值）。 */
+/** 「标记重点」提示 toast 的黑白反色（原 TimelineSettingsTab 内联色值；黑底改取宿主 tooltip 底板 token）。 */
 const MARK_LOCKED_TOAST_COLOR = {
-  light: { backgroundColor: '#0d0d0d', textColor: '#ffffff', borderColor: '#0d0d0d' },
+  light: { backgroundColor: 'var(--dsw-alias-tooltip-bg)', textColor: '#ffffff', borderColor: 'var(--dsw-alias-tooltip-bg)' },
   dark: { backgroundColor: '#ffffff', textColor: '#1f2937', borderColor: '#e5e7eb' },
 }
 
@@ -51,8 +51,20 @@ const MARK_LOCKED_TOAST_COLOR = {
 const IS_MAC = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('MAC')
 const CTRL_LABEL = IS_MAC ? '⌘' : 'Ctrl'
 
-/** Tab 定义（顺序对齐原 TAB_CONFIG 中迁移的部分）。 */
-const TABS: readonly { id: PanelTab; labelKey: 'panel.tabTimeline' | 'panel.tabStarred' | 'panel.tabPrompt' | 'panel.tabSmartInput' | 'panel.tabFormula' | 'panel.tabExport' | 'panel.tabDataSync'; icon: React.ReactNode }[] = [
+/** Tab 定义（顺序对齐原 TAB_CONFIG 中迁移的部分；about 置首）。 */
+const TABS: readonly { id: PanelTab; labelKey: 'panel.tabAbout' | 'panel.tabTimeline' | 'panel.tabStarred' | 'panel.tabPrompt' | 'panel.tabSmartInput' | 'panel.tabFormula' | 'panel.tabExport' | 'panel.tabDataSync'; icon: React.ReactNode }[] = [
+  {
+    id: 'about',
+    labelKey: 'panel.tabAbout',
+    icon: (
+      // 原 AboutTab 图标：圆圈 i。
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="8" strokeWidth="3" strokeLinecap="round" />
+        <line x1="12" y1="12" x2="12" y2="16" strokeLinecap="round" />
+      </svg>
+    ),
+  },
   {
     id: 'timeline',
     labelKey: 'panel.tabTimeline',
@@ -241,6 +253,7 @@ export function PanelHost({ t, currentSessionId, openSession }: PanelHostProps) 
             </button>
           </div>
           <div className={css.content}>
+            {activeTab === 'about' ? <AboutTab t={t} /> : null}
             {activeTab === 'timeline' ? <TimelineTab t={t} reminderSeq={reminderSeq} /> : null}
             {activeTab === 'starred'
               ? (
@@ -345,13 +358,147 @@ function PlatformInfo() {
   )
 }
 
+// ==================== 关于插件 tab ====================
+
+/** 原 AboutTab 的各外链（商店/文档/仓库）与反馈邮箱。 */
+const ABOUT_LINKS = {
+  docs: 'https://timeline4ai.com/#/guide?section=timeline',
+  chrome: 'https://chromewebstore.google.com/detail/fgebdnlceacaiaeikopldglhffljjlhh?utm_source=item-share-cb',
+  edge: 'https://microsoftedge.microsoft.com/addons/detail/ai-timeline%EF%BC%9Agemini%E3%80%81chatgp/ekednjjojnhlajfobalaaihkibbdcbab',
+  firefox: 'https://addons.mozilla.org/en-US/firefox/addon/ai-timeline/',
+  github: 'https://github.com/houyanchao/dsh-timeline',
+  issues: 'https://github.com/houyanchao/dsh-timeline/issues',
+  email: 'houyanchao@outlook.com',
+} as const
+
+/** 当前浏览器对应的商店入口（Edge UA 含 Chrome，须先判 Edge）。 */
+function detectBrowserStore(): { readonly href: string; readonly icon: React.ReactNode } {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  if (/Edg/i.test(ua)) {
+    return {
+      href: ABOUT_LINKS.edge,
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49" />
+        </svg>
+      ),
+    }
+  }
+  if (/Firefox/i.test(ua)) {
+    return {
+      href: ABOUT_LINKS.firefox,
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zM17.9 17.39c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C18.93 5.77 22 8.65 22 12c0 2.08-.8 3.97-2.1 5.39z" />
+        </svg>
+      ),
+    }
+  }
+  return {
+    href: ABOUT_LINKS.chrome,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden>
+        <circle cx="12" cy="12" r="10" />
+        <circle cx="12" cy="12" r="4" />
+        <line x1="21.17" y1="8" x2="12" y2="8" />
+        <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
+        <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
+      </svg>
+    ),
+  }
+}
+
+/** 关于插件 tab（移植原 tabs/about：分享按钮组 + 简介/数据安全/提需求）。 */
+function AboutTab({ t }: { readonly t: T }) {
+  const browserStore = detectBrowserStore()
+  const copyEmail = (): void => {
+    void navigator.clipboard.writeText(ABOUT_LINKS.email).then(() => {
+      toast.success(t('about.copied'))
+    })
+  }
+
+  return (
+    <div className={css.aboutTab}>
+      {/* 分享操作按钮组（原 about-share-actions） */}
+      <div className={css.aboutShareActions}>
+        <a href={ABOUT_LINKS.docs} target="_blank" rel="noopener noreferrer" className={css.aboutShareActionBtn}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" /><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" /></svg>
+          {t('about.btnDocs')}
+        </a>
+        <a href={ABOUT_LINKS.github} target="_blank" rel="noopener noreferrer" className={css.aboutShareActionBtn}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>
+          {t('about.btnGithub')}
+        </a>
+        <a href={browserStore.href} target="_blank" rel="noopener noreferrer" className={css.aboutShareActionBtn}>
+          {browserStore.icon}
+          {t('about.btnBrowser')}
+        </a>
+      </div>
+
+      {/* 插件简介 */}
+      <div className={css.aboutSection}>
+        <div className={css.aboutSectionIcon}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20" aria-hidden>
+            <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z" />
+            <polyline points="13,2 13,9 20,9" />
+          </svg>
+        </div>
+        <div className={css.aboutSectionBody}>
+          <div className={css.aboutSectionTitle}>{t('about.pluginTitle')}</div>
+          <div className={css.aboutSectionContent}>{t('about.pluginContent')}</div>
+        </div>
+      </div>
+
+      {/* 数据安全 */}
+      <div className={css.aboutSection}>
+        <div className={css.aboutSectionIcon}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20" aria-hidden>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </div>
+        <div className={css.aboutSectionBody}>
+          <div className={css.aboutSectionTitle}>{t('about.dataSecurityTitle')}</div>
+          <div className={css.aboutSectionContent}>{t('about.dataSecurityContent')}</div>
+        </div>
+      </div>
+
+      {/* 提需求（含反馈渠道块） */}
+      <div className={css.aboutSection}>
+        <div className={css.aboutSectionIcon}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20" aria-hidden>
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        </div>
+        <div className={css.aboutSectionBody}>
+          <div className={css.aboutSectionTitle}>{t('about.developerTitle')}</div>
+          <div className={css.aboutSectionContent}>
+            {t('about.developerContent')}
+            <div className={css.aboutFeedbackBlocks}>
+              <a href={ABOUT_LINKS.issues} target="_blank" rel="noopener noreferrer" className={css.aboutFeedbackBlock}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>
+                <span>{t('about.feedbackGithub')}</span>
+              </a>
+              <button type="button" className={css.aboutFeedbackBlock} onClick={copyEmail}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
+                <span>{t('about.feedbackEmail')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ==================== 时间轴 tab ====================
 
 function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderSeq?: number }) {
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
   const [themeModalOpen, setThemeModalOpen] = useState(false)
   const [reminderModalOpen, setReminderModalOpen] = useState(false)
-  const [platformModalOpen, setPlatformModalOpen] = useState(false)
 
   // 深链：panelModal.show('timeline', 'aiCompleteReminder') 时自动打开提醒子弹窗
   // （对齐原 TimelineSettingsTab.showAICompleteReminderModal 直开行为）。
@@ -366,6 +513,20 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
   return (
     <div className={css.settingsRoot}>
       <div className={css.settingsScroll}>
+        {/* 显示时间轴（DSH 单平台，开关直接内联；置于内容区首位） */}
+        <div className={css.settingSection}>
+          <SettingItem
+            label={t('panel.timelineDisplayLabel')}
+            hint={t('panel.timelineDisplayHint')}
+            control={(
+              <Toggle
+                checked={settings.timelineEnabled}
+                onChange={(enabled) => { settingsStore.set({ timelineEnabled: enabled }) }}
+              />
+            )}
+          />
+        </div>
+        <div className={css.divider} />
         {/* 显示对话时间 */}
         <div className={css.settingSection}>
           <SettingItem
@@ -472,19 +633,6 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
           />
         </div>
       </div>
-      {/* 底部悬浮：显示时间轴 */}
-      <div className={css.bottomDivider} />
-      <div className={css.bottomSection}>
-        <SettingItem
-          label={t('panel.timelineDisplayLabel')}
-          hint={t('panel.timelineDisplayHint')}
-          control={(
-            <button type="button" className={css.manageBtn} onClick={() => { setPlatformModalOpen(true) }}>
-              {t('panel.switchBtn')}
-            </button>
-          )}
-        />
-      </div>
 
       {/* 主题色子弹窗（原 _showThemeColorModal，DSH 单平台一行） */}
       {themeModalOpen
@@ -546,20 +694,6 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
         )
         : null}
 
-      {/* 显示时间轴子弹窗（原 _showPlatformManageModal，DSH 单平台一行） */}
-      {platformModalOpen
-        ? (
-          <SubModal title={t('panel.platformModalTitle')} onClose={() => { setPlatformModalOpen(false) }}>
-            <div className={css.subPlatformItem}>
-              <PlatformInfo />
-              <Toggle
-                checked={settings.timelineEnabled}
-                onChange={(enabled) => { settingsStore.set({ timelineEnabled: enabled }) }}
-              />
-            </div>
-          </SubModal>
-        )
-        : null}
     </div>
   )
 }
@@ -587,9 +721,9 @@ function MarkLockedToggle({ t }: { readonly t: T }) {
 
 // ==================== 文件夹 tab ====================
 
-/** 收藏 tab 内树操作 toast 的配色（原 StarredTab 注入的 toastOptions.color）。 */
+/** 收藏 tab 内树操作 toast 的配色（原 StarredTab 注入的 toastOptions.color；黑底改取宿主 tooltip 底板 token）。 */
 const STARRED_TAB_TOAST_COLOR = {
-  light: { backgroundColor: '#0d0d0d', textColor: '#ffffff', borderColor: '#262626' },
+  light: { backgroundColor: 'var(--dsw-alias-tooltip-bg)', textColor: '#ffffff', borderColor: 'var(--dsw-alias-tooltip-bg)' },
   dark: { backgroundColor: '#ffffff', textColor: '#1f2937', borderColor: '#d1d5db' },
 }
 
@@ -603,7 +737,6 @@ interface StarredTabProps {
 function StarredTab({ t, currentSessionId, openSession, onClose }: StarredTabProps) {
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
   const [searchQuery, setSearchQuery] = useState('')
-  const [platformModalOpen, setPlatformModalOpen] = useState(false)
   const addBtnRef = useRef<HTMLButtonElement>(null)
 
   return (
@@ -656,32 +789,20 @@ function StarredTab({ t, currentSessionId, openSession, onClose }: StarredTabPro
           t={t}
         />
       </div>
-      {/* 底部：显示文件夹开关（原 renderSidebarSettings 的显示文件夹项） */}
+      {/* 底部：显示文件夹开关（DSH 单平台，开关直接内联，不再弹平台子弹窗） */}
       <div className={css.starredSidebarDivider} />
       <div className={css.starredSidebarToggle}>
         <SettingItem
           label={t('panel.starredDisplayLabel')}
           hint={t('panel.starredDisplayHint')}
           control={(
-            <button type="button" className={css.manageBtn} onClick={() => { setPlatformModalOpen(true) }}>
-              {t('panel.switchBtn')}
-            </button>
+            <Toggle
+              checked={settings.starredPanelEnabled}
+              onChange={(enabled) => { settingsStore.set({ starredPanelEnabled: enabled }) }}
+            />
           )}
         />
       </div>
-      {platformModalOpen
-        ? (
-          <SubModal title={t('panel.platformModalTitle')} onClose={() => { setPlatformModalOpen(false) }}>
-            <div className={css.subPlatformItem}>
-              <PlatformInfo />
-              <Toggle
-                checked={settings.starredPanelEnabled}
-                onChange={(enabled) => { settingsStore.set({ starredPanelEnabled: enabled }) }}
-              />
-            </div>
-          </SubModal>
-        )
-        : null}
     </div>
   )
 }
@@ -693,7 +814,6 @@ function PromptTab({ t }: { readonly t: T }) {
   const prompts = useSyncExternalStore(promptsStore.subscribe, () => promptsStore.getAll())
   const sorted = useMemo(() => sortPrompts(prompts), [prompts])
   const [modal, setModal] = useState<{ readonly mode: 'add' } | { readonly mode: 'edit'; readonly prompt: Prompt } | null>(null)
-  const [platformModalOpen, setPlatformModalOpen] = useState(false)
 
   const actionTooltip = (id: string, text: string) => ({
     onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -830,32 +950,20 @@ function PromptTab({ t }: { readonly t: T }) {
           </div>
         </div>
       </div>
-      {/* 底部悬浮：显示提示词按钮 */}
+      {/* 底部悬浮：显示提示词按钮（DSH 单平台，开关直接内联，不再弹平台子弹窗） */}
       <div className={css.bottomDivider} />
       <div className={css.bottomSection}>
         <SettingItem
           label={t('panel.promptBtnLabel')}
           hint={t('panel.promptBtnHint')}
           control={(
-            <button type="button" className={css.manageBtn} onClick={() => { setPlatformModalOpen(true) }}>
-              {t('panel.switchBtn')}
-            </button>
+            <Toggle
+              checked={settings.promptButtonEnabled}
+              onChange={(enabled) => { settingsStore.set({ promptButtonEnabled: enabled }) }}
+            />
           )}
         />
       </div>
-      {platformModalOpen
-        ? (
-          <SubModal title={t('panel.platformModalTitle')} onClose={() => { setPlatformModalOpen(false) }}>
-            <div className={css.subPlatformItem}>
-              <PlatformInfo />
-              <Toggle
-                checked={settings.promptButtonEnabled}
-                onChange={(enabled) => { settingsStore.set({ promptButtonEnabled: enabled }) }}
-              />
-            </div>
-          </SubModal>
-        )
-        : null}
       {modal !== null
         ? (
           <PromptModal
@@ -1174,10 +1282,10 @@ function ExportTab({ t }: { readonly t: T }) {
 
 // ==================== 数据同步 tab ====================
 
-/** toast 主题配色（原 DataSyncTab.toastColors）。 */
+/** toast 主题配色（原 DataSyncTab.toastColors；两套都是黑底，统一取宿主 tooltip 底板 token）。 */
 const SYNC_TOAST_COLOR = {
-  light: { backgroundColor: '#0d0d0d', textColor: '#ffffff', borderColor: '#0d0d0d' },
-  dark: { backgroundColor: '#262626', textColor: '#f5f5f5', borderColor: '#404040' },
+  light: { backgroundColor: 'var(--dsw-alias-tooltip-bg)', textColor: '#ffffff', borderColor: 'var(--dsw-alias-tooltip-bg)' },
+  dark: { backgroundColor: 'var(--dsw-alias-tooltip-bg)', textColor: '#f5f5f5', borderColor: 'var(--dsw-alias-tooltip-bg)' },
 }
 
 /** 数据同步 tab（原 DataSyncTab，仅本地文件导入导出，云同步不迁移）。 */
@@ -1243,13 +1351,6 @@ function DataSyncTab({ t }: { readonly t: T }) {
   return (
     <div className={css.syncRoot}>
       <div className={css.syncSection}>
-        <div className={css.syncTitle}>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14,2 14,8 20,8" />
-          </svg>
-          {t('panel.syncTitle')}
-        </div>
         <div className={css.syncHint}>{t('panel.syncHint')}</div>
 
         <div className={css.syncGroup}>
