@@ -38,19 +38,37 @@
 
 ## 安装
 
+本包以 DSH **组合包**（bundle）形式分发（`package.json` 的 `dsh.bundle` 指向自带的 `cordis.patch.yml` 配置层）。用 `dsh` CLI 安装进 profile（[文档：打包与安装插件](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish)）：
+
 ```bash
-pnpm install   # 安装依赖并构建插件（prepare 脚本）
+# 从本地 checkout 安装
+git clone https://github.com/houyanchao/dsh-timeline.git
+dsh plugin --profile web add ./dsh-timeline
+
+# 或直接从 GitHub 安装
+dsh plugin --profile web add github:houyanchao/dsh-timeline
 ```
 
-DSH 集成声明在 `package.json` 的 `dsh` 字段（面向 `web` 平台的客户端 bundle，注入会话 UI）。作为插件加载的方式见 [DSH 插件开发文档](https://deepseek-harness.github.io/deepseek-harness/develop/basic/)。
+由于包声明了 `dsh.bundle`，`dsh` 会自动把它追加进该 profile 的 `dsh.profile.bundles` 列表。之后用该 profile 启动 Web UI：
+
+```bash
+dsh --profile web
+```
+
+可用 `dsh --profile web --dump-config` 查看组合后的配置树，应能看到 `dsh-timeline` 条目。
+
+> **注意**：本包通过 `prepare` 脚本构建 `lib/`。若从 GitHub 安装时提示构建脚本被拦截，把 `dsh-timeline-plugin` 加入 profile 的 `pnpm-workspace.yaml` 中的 `allowBuilds` 列表后重试（见上方文档）。
 
 ## 开发
 
 ```bash
+pnpm install     # 安装依赖（prepare 脚本会构建一次）
 pnpm typecheck   # TypeScript 类型检查
 pnpm bundle      # 单次构建（tsdown）
 pnpm watch       # 监听变更自动构建
 ```
+
+若只想快速迭代、不安装进 profile，也可以通过 `--patch` overlay 加载插件——见[第一个插件](https://deepseek-harness.github.io/deepseek-harness/develop/basic/)。
 
 源码按功能分目录（`src/client/` 下的 `timeline/`、`starred/`、`notepad/`、`smartInputBox/`、`quickAsk/`、`conversationExport/`、`formula/`、`panelModal/`，以及共享的 `ui/` 基础组件）。`MIGRATION.md` 记录了与原 Chrome 插件逐文件的迁移对照。
 

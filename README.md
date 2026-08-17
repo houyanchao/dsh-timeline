@@ -38,19 +38,37 @@ Fully migrated from the [AI Timeline Chrome extension](https://github.com/houyan
 
 ## Installation
 
+This package ships as a DSH **bundle** (`dsh.bundle` in `package.json` points to its `cordis.patch.yml` layer). Install it into a profile with the `dsh` CLI ([docs: package and install a plugin](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)):
+
 ```bash
-pnpm install   # installs deps and builds the plugin (prepare script)
+# from a local checkout
+git clone https://github.com/houyanchao/dsh-timeline.git
+dsh plugin --profile web add ./dsh-timeline
+
+# or install straight from GitHub
+dsh plugin --profile web add github:houyanchao/dsh-timeline
 ```
 
-The package declares its DSH integration in `package.json` (`dsh` field): a client bundle targeting the `web` platform that injects into the conversation UI. Load it as a plugin in your DSH setup — see the [DSH plugin development docs](https://deepseek-harness.github.io/deepseek-harness/develop/basic/).
+Because the package declares `dsh.bundle`, `dsh` appends it to the profile's `dsh.profile.bundles` list automatically. Then launch the Web UI with that profile:
+
+```bash
+dsh --profile web
+```
+
+You can verify the composed configuration with `dsh --profile web --dump-config` — a `dsh-timeline` row should appear.
+
+> **Note**: the package builds `lib/` via its `prepare` script. If a GitHub install reports blocked build scripts, add `dsh-timeline-plugin` to the `allowBuilds` list in the profile's `pnpm-workspace.yaml` and retry (see the docs above).
 
 ## Development
 
 ```bash
+pnpm install     # install deps (prepare script builds once)
 pnpm typecheck   # TypeScript type check
 pnpm bundle      # build once (tsdown)
 pnpm watch       # rebuild on change
 ```
+
+For quick iteration without installing into a profile, you can also load the plugin through a `--patch` overlay — see [your first plugin](https://deepseek-harness.github.io/deepseek-harness/develop/basic/).
 
 Source layout: one directory per feature under `src/client/` (`timeline/`, `starred/`, `notepad/`, `smartInputBox/`, `quickAsk/`, `conversationExport/`, `formula/`, `panelModal/`, plus shared `ui/` primitives). `MIGRATION.md` documents the file-by-file mapping from the original Chrome extension.
 
