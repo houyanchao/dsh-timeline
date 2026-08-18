@@ -105,6 +105,9 @@ export function DotTooltip({ item, anchorRect, isStarred, isPinned, onToggleStar
           >
             {item.title}
           </div>
+          {item.reply !== ''
+            ? <div className={css.tooltipReply}>{item.reply}</div>
+            : null}
         </div>
         <div className={css.tooltipActions}>
           <span

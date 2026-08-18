@@ -42,6 +42,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: link:../../deepseekharness/packages/client/ui-slots
         version: link:../../deepseekharness/packages/client/ui-slots
+      '@deepseek-ai/dsh-client-ui-theme':
+        specifier: link:../../deepseekharness/packages/client/ui-theme
+        version: link:../../deepseekharness/packages/client/ui-theme
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31

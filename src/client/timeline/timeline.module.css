@@ -421,7 +421,7 @@
   flex: 0 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
 }
 
 .tooltipTime {
@@ -430,6 +430,7 @@
   color: #64748b;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  margin-bottom: 10px;
 }
 
 .root[data-dsh-tl-theme='dark'] .tooltipTime {
@@ -457,6 +458,24 @@
 
 .tooltipContent:active {
   opacity: 0.6;
+}
+
+/* 助手回复预览：固定两行，弱于提问正文。 */
+.tooltipReply {
+  margin-top: 5px;
+  line-height: var(--tl-tooltip-lh);
+  overflow: hidden;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 13px;
+  font-weight: 400;
+  color: #64748b;
+}
+
+.root[data-dsh-tl-theme='dark'] .tooltipReply {
+  color: #a1a1aa;
 }
 
 .tooltipActions {
@@ -1137,12 +1156,17 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #cfd3d6;
+  color: #61666b;
   font-size: 12px;
   font-weight: 400;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* 宿主深色主题（ThemePresenter 打在 body 上的 data-ds-dark-theme）。 */
+:global(body[data-ds-dark-theme]) .headerBtn {
+  color: #cfd3d6;
 }
 
 .headerBtn:hover {

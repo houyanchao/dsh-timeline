@@ -10,7 +10,7 @@ import type { PropsLocale, PropsRuntime, PropsStore, TranslateNS } from '@deepse
 import type { ChatNodeStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS } from '../locales.ts'
-import { summarizeBlocks } from '../shared/text.ts'
+import { summarizeAssistantBlocks, summarizeBlocks } from '../shared/text.ts'
 import { settingsStore } from '../shared/settings.ts'
 import { pinsStore, starredStore } from '../starred/storage.ts'
 import { toast } from '../ui/toast.tsx'
@@ -70,22 +70,39 @@ interface UserLikeData {
   readonly time?: number
 }
 
+interface AssistantLikeData {
+  readonly blocks?: readonly unknown[]
+}
+
 function collectItems(
   order: readonly string[],
   nodes: ChatNodeStore,
   t: TranslateNS<typeof NS>,
 ): TimelineItem[] {
   const items: TimelineItem[] = []
+  let pendingReplyIndex = -1
   for (const key of order) {
     const node = nodes.get(key)
-    if (node === undefined || node.visibility === 'hidden' || !USER_KINDS.has(node.kind)) continue
-    const data = node.data as UserLikeData
-    const title = summarizeBlocks(data.content ?? [])
-    items.push({
-      key,
-      title: title !== '' ? title : t('placeholder.attachment'),
-      time: data.time ?? 0,
-    })
+    if (node === undefined || node.visibility === 'hidden') continue
+    if (USER_KINDS.has(node.kind)) {
+      const data = node.data as UserLikeData
+      const title = summarizeBlocks(data.content ?? [])
+      items.push({
+        key,
+        title: title !== '' ? title : t('placeholder.attachment'),
+        time: data.time ?? 0,
+        reply: '',
+      })
+      pendingReplyIndex = items.length - 1
+      continue
+    }
+    // 宿主 Chat 视图节点 kind 是 Definition 名：助手为 assistant-step，不是 data.kind。
+    if (node.kind !== 'assistant-step' || pendingReplyIndex < 0) continue
+    const reply = summarizeAssistantBlocks((node.data as AssistantLikeData).blocks ?? [])
+    if (reply === '') continue
+    const pending = items[pendingReplyIndex]
+    if (pending !== undefined) items[pendingReplyIndex] = { ...pending, reply }
+    pendingReplyIndex = -1
   }
   return items
 }

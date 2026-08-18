@@ -476,67 +476,6 @@
 }
 
 /* ============================================
-   平台列表（原 .platform-list 系列）
-   ============================================ */
-
-.platformList {
-  padding: 0;
-}
-
-.platformListTitle {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 6px;
-  padding: 0;
-}
-
-.platformListHint {
-  font-size: 13px;
-  color: #6b7280;
-  line-height: 1.6;
-  margin-bottom: 12px;
-  padding: 0;
-}
-
-.platformListContainer {
-  background: #f9fafb;
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.platformItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 8px;
-  background: transparent;
-  border-radius: 4px;
-  margin-bottom: 6px;
-  transition: background 0.2s;
-}
-
-.platformItem:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.platformItem:last-child {
-  margin-bottom: 0;
-}
-
-.platformInfoLeft {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.platformName {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-}
-
-/* ============================================
    子弹窗（原 .starred-platform-modal 系列）
    ============================================ */
 
@@ -1592,16 +1531,6 @@
 /* 区块间距（原 .formula-settings .setting-section { margin-bottom: 12px }，无分割线） */
 .formulaSectionGap {
   margin-bottom: 12px;
-}
-
-/* ==================== 导出 tab 平台 logo（原 .conversation-export-platform-logo） ==================== */
-
-.exportPlatformLogo {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  object-fit: contain;
-  flex-shrink: 0;
 }
 
 /* ============================================

@@ -32,10 +32,10 @@ const APP_VERSION = '0.1.0'
 const KEY_PREFIXES = ['dsh.timeline.', 'dsh-tl-'] as const
 
 /** 各 key 的合并策略所需的字段名（原 mergeByKey 的 DSH key 映射）。 */
-const STARRED_KEY = 'dsh.timeline.starred.v1'
-const PINS_KEY = 'dsh.timeline.pins.v1'
-const PROMPTS_KEY = 'dsh.timeline.prompts.v1'
-const SETTINGS_KEY = 'dsh.timeline.settings.v1'
+const STARRED_KEY = 'dsh.timeline.starred'
+const PINS_KEY = 'dsh.timeline.pins'
+const PROMPTS_KEY = 'dsh.timeline.prompts'
+const SETTINGS_KEY = 'dsh.timeline.settings'
 
 /** 是否插件自有 key。 */
 function isPluginKey(key: string): boolean {
