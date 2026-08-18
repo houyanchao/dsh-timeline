@@ -1,77 +1,51 @@
+<div align="center">
+
 # DSH Timeline
+
+**An all-in-one productivity plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) conversations**
+
+Timeline navigation · Starred folders · Prompt library · Conversation export · Formula copy
+
+[![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-6128FF)](https://deepseek-harness.github.io/deepseek-harness/)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](./LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/houyanchao/dsh-timeline/pulls)
+[![GitHub stars](https://img.shields.io/github/stars/houyanchao/dsh-timeline?style=social)](https://github.com/houyanchao/dsh-timeline)
 
 [简体中文](./README.md) | **English**
 
-A native [DeepSeek Harness (DSH)](https://deepseek-harness.github.io/deepseek-harness/) plugin that adds a conversation timeline, starred folders, quick notes, a prompt library and a set of input & reading enhancements to your chat sessions.
+![Feature overview](./docs/intro.png)
 
-Fully migrated from the [AI Timeline Chrome extension](https://github.com/houyanchao/chatgpt-gemini-timeline) with interaction, styling and logic parity — re-implemented on top of DSH's plugin architecture (slot components + session snapshots, no DOM scraping).
+</div>
 
-<!-- Feature overview image (placeholder) -->
-<!-- ![Feature overview](./docs/overview.png) -->
+## 📖 What is DSH Timeline?
 
-## Features
+DSH Timeline is a feature-enhancement plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/).
 
-### Timeline
-- **Timeline rail** on the right side of the conversation: one dot per question, placed proportionally to its position, with a compact mode for dense sessions and virtualized rendering for long ones.
-- **Active node tracking** synced with your scroll position; click a dot to smooth-scroll to that question.
-- **Hover tooltip** with question time and full text (click to copy), plus star / pin actions; long-press a dot to toggle its pin marker.
-- **Question list panel**: numbered list of all questions, active row follows your reading position, inline star / pin actions.
-- **Keyboard navigation**: `↑` / `↓` jump to the previous / next question.
-- **Mouse wheel on the rail** drives the main conversation scroll.
-- Collapsible rail, 4 accent colors, message time labels, and an **AI completion reminder** (toast + optional sound) when a reply finishes while you are reading earlier messages.
+Once an AI conversation gets long, finding things becomes a chore: revisiting a question means endless scrolling, key takeaways get scattered across sessions, and formulas or content are hard to take with you. DSH Timeline was built for exactly this — it renders a visual timeline beside the conversation so you can jump anywhere in one click, and rounds out the workflow with starred folders, pin markers, quick notes, a prompt library, and multi-format export: find it, note it, organize it, take it with you.
 
-### Organize
-- **Star messages or whole conversations** into two-level folders with emoji icons; pin, drag-and-drop reorder, edit and search.
-- **Folder panel** in the sidebar footer for quick navigation across sessions.
-- **Notepad**: a draggable, resizable quick-notes panel; notes can be starred into folders too.
+The plugin blends right into the host UI: it follows the light / dark theme in real time, ships with an English / Chinese interface, and every feature can be toggled independently — install it and go, without disrupting your habits.
 
-### Input
-- **Prompt library**: save frequently used prompts and insert them into the composer with one click.
-- **Smart Enter**: `Enter` inserts a newline; send with double-`Enter`, `Ctrl/⌘+Enter` or `Shift+Enter` (configurable).
-- **Quick Ask**: select any text in the conversation and quote it into the composer as a follow-up question.
-- **Keep reading position on send**: sending a message while reading earlier history no longer jumps the page to the bottom.
+## ✨ Features
 
-### Export & more
-- **Conversation export** to Markdown / TXT / JSON / CSV / PNG / PDF, with optional timestamps and images.
-- **Formula copy**: copy math formulas as LaTeX (multiple delimiter styles) or MathML.
-- Settings panel with per-feature toggles, light / dark theme following the host, English / Chinese UI, and local data backup (export / import JSON).
+- 🧭 **Timeline navigation** — a rail on the right maps every question; click to jump, with a compact mode, virtualized rendering, and `↑` / `↓` shortcuts
+- 📌 **Key-point markers** — long-press a timeline node to pin it, so important questions stand out
+- 📋 **Question list** — numbered list of all questions, active row follows your reading position
+- ⭐ **Starred folders** — file whole conversations, single questions, and notes into two-level folders; drag to organize, pin, and search
+- 📝 **Notepad** — a draggable, resizable quick-notes panel for capturing ideas
+- 💬 **Prompt library** — save frequently used prompts and insert them from beside the composer in one click
+- ⌨️ **Smart input** — `Enter` for a newline, double-`Enter` to send; quote selected text as a follow-up; keep your reading position after sending
+- 📤 **Conversation export** — Markdown / TXT / JSON / CSV / PNG / PDF, with math formulas rendered as usual
+- 🧮 **Formula copy** — click a formula to copy it as LaTeX or MathML, ready to paste into Word
+- 🔔 **Reply alerts** — toast and optional sound when a reply finishes while you are reading earlier messages
+- 💾 **Data backup** — one-click export / import of all plugin data (JSON)
+- 🎨 **Native feel** — follows the host's light / dark theme, English / Chinese UI, per-feature toggles
 
-## Installation
+## ⭐ Support
 
-This package ships as a DSH **bundle** (`dsh.bundle` in `package.json` points to its `cordis.patch.yml` layer). Install it into a profile with the `dsh` CLI ([docs: package and install a plugin](https://deepseek-harness.github.io/deepseek-harness/en/develop/basic/publish)):
+If Timeline helped you, share it with your friends — and a GitHub Star helps more people discover it!
 
-```bash
-# from a local checkout
-git clone https://github.com/houyanchao/dsh-timeline.git
-dsh plugin --profile web add ./dsh-timeline
+## 📄 License
 
-# or install straight from GitHub
-dsh plugin --profile web add github:houyanchao/dsh-timeline
-```
+This project is open-sourced under the [GPL-3.0-or-later](./LICENSE) license.
 
-Because the package declares `dsh.bundle`, `dsh` appends it to the profile's `dsh.profile.bundles` list automatically. Then launch the Web UI with that profile:
-
-```bash
-dsh --profile web
-```
-
-You can verify the composed configuration with `dsh --profile web --dump-config` — a `dsh-timeline` row should appear.
-
-> **Note**: the package builds `lib/` via its `prepare` script. If a GitHub install reports blocked build scripts, add `dsh-timeline-plugin` to the `allowBuilds` list in the profile's `pnpm-workspace.yaml` and retry (see the docs above).
-
-## Development
-
-```bash
-pnpm install     # install deps (prepare script builds once)
-pnpm typecheck   # TypeScript type check
-pnpm bundle      # build once (tsdown)
-pnpm watch       # rebuild on change
-```
-
-For quick iteration without installing into a profile, you can also load the plugin through a `--patch` overlay — see [your first plugin](https://deepseek-harness.github.io/deepseek-harness/develop/basic/).
-
-Source layout: one directory per feature under `src/client/` (`timeline/`, `starred/`, `notepad/`, `smartInputBox/`, `quickAsk/`, `conversationExport/`, `formula/`, `panelModal/`, plus shared `ui/` primitives). `MIGRATION.md` documents the file-by-file mapping from the original Chrome extension.
-
-## License
-
-[GPL-3.0-or-later](./LICENSE)
+You are free to use, study, modify, and distribute this project, but derivative works must be released under the same license and keep the original copyright notice. Please make sure your usage complies with the license before any commercial use.

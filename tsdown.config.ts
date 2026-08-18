@@ -13,7 +13,8 @@ import { basename, dirname, resolve as resolvePath } from 'node:path'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
 
-const PLUGIN_ID = 'dsh-timeline-plugin'
+// 必须与 package.json 的 name 一致：浏览器端按包名匹配 __ModuleLoader__ 注册 id。
+const PLUGIN_ID = 'dsh-timeline'
 
 /** 平台模块表（与 deepseekharness packages/client/web/src/platform.ts 保持一致）。 */
 const CLIENT_EXTERNALS: readonly string[] = [

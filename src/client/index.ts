@@ -1,5 +1,5 @@
 /**
- * dsh-timeline-plugin，浏览器半：注册词典与会话头部的时间轴入口。
+ * dsh-timeline，浏览器半：注册词典与会话头部的时间轴入口。
  * 时间轴数据来自 Chat 快照（useSession），显隐与收藏走会话级持久化 store。
  */
 import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'

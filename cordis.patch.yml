@@ -1,5 +1,5 @@
-# dsh-timeline-plugin 组合包层：插入时间轴客户端插件行。
+# dsh-timeline 组合包层：插入时间轴客户端插件行。
 # 行名按包名引用，浏览器半由 dsh.client manifest 声明（platform: web）。
 - insert:
     - id: dsh-timeline
-      name: dsh-timeline-plugin
+      name: dsh-timeline

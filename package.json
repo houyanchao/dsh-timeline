@@ -1,7 +1,24 @@
 {
-  "name": "dsh-timeline-plugin",
-  "description": "DSH 原生时间轴插件：会话右侧时间轴导航、问题列表与收藏标记",
-  "version": "0.1.0",
+  "name": "dsh-timeline",
+  "description": "DeepSeek Harness (DSH) plugin: timeline navigation, starred folders, conversation export, prompt library, and quick notes in one.",
+  "version": "0.1.1",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "timeline",
+    "conversation",
+    "export",
+    "bookmark"
+  ],
+  "homepage": "https://github.com/houyanchao/dsh-timeline#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/houyanchao/dsh-timeline.git"
+  },
+  "bugs": {
+    "url": "https://github.com/houyanchao/dsh-timeline/issues"
+  },
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
