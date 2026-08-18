@@ -8,7 +8,7 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
 import { toast } from '../ui/toast.tsx'
 import { starEditModal } from '../timeline/StarModal.tsx'
-import { starredStore } from './storage.ts'
+import { sessionStarKey, starredStore } from './storage.ts'
 import {
   WORKSPACES_SLOT, resolveSessionFromRow, type SessionTitleRow,
 } from './sessionRowDom.ts'
@@ -69,7 +69,7 @@ function injectMenuItem(
   tracked: TrackedSession,
   t: TranslateNS<typeof NS>,
 ): void {
-  const key = `${tracked.sessionId}:-1`
+  const key = sessionStarKey(tracked.sessionId)
   const starred = starredStore.exists(key)
   const existing = menu.querySelector<HTMLElement>(`[${MARKER_ATTR}]`)
   if (existing !== null) {
@@ -110,10 +110,11 @@ function injectMenuItem(
       }).then((result) => {
         if (result === null) return
         starredStore.addStar({
-          key: `${sessionId}:-1`,
+          key: sessionStarKey(sessionId),
+          kind: 'session',
           sessionId,
-          nodeKey: '-1',
-          question: result.value.slice(0, 100),
+          nodeKey: '',
+          title: result.value.slice(0, 100),
           timestamp: Date.now(),
           folderId: result.folderId,
         })

@@ -12,7 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS } from '../locales.ts'
 import { summarizeAssistantBlocks, summarizeBlocks } from '../shared/text.ts'
 import { settingsStore } from '../shared/settings.ts'
-import { pinsStore, starredStore } from '../starred/storage.ts'
+import { nodeStarKey, pinsStore, sessionStarKey, starredStore } from '../starred/storage.ts'
 import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import type { createTimelineStore, StarRecord } from './store.ts'
@@ -126,8 +126,8 @@ export function TimelineAction({ sessionId, useSession, useSessions, useStore, a
   const starred = useMemo(() => {
     const map: Record<string, StarRecord> = {}
     for (const item of starredState.items) {
-      if (item.sessionId === sessionId && item.nodeKey !== '-1') {
-        map[item.nodeKey] = { title: item.question, time: item.timestamp }
+      if (item.kind === 'node' && item.sessionId === sessionId) {
+        map[item.nodeKey] = { title: item.title, time: item.timestamp }
       }
     }
     return map
@@ -145,8 +145,8 @@ export function TimelineAction({ sessionId, useSession, useSessions, useStore, a
 
   const items = useMemo(() => collectItems(order, nodes, t), [order, nodes, t])
 
-  // 整会话收藏（原 toggleChatStar：key 尾缀 -1）。
-  const chatKey = `${sessionId}:-1`
+  // 整会话收藏（原 toggleChatStar）。
+  const chatKey = sessionStarKey(sessionId)
   const chatStarred = starredState.items.some(i => i.key === chatKey)
   const toggleChatStar = (): void => {
     if (chatStarred) {
@@ -163,9 +163,10 @@ export function TimelineAction({ sessionId, useSession, useSessions, useStore, a
       if (result === null) return
       starredStore.addStar({
         key: chatKey,
+        kind: 'session',
         sessionId,
-        nodeKey: '-1',
-        question: result.value.slice(0, 100),
+        nodeKey: '',
+        title: result.value.slice(0, 100),
         timestamp: Date.now(),
         folderId: result.folderId,
       })
@@ -222,22 +223,23 @@ export function TimelineAction({ sessionId, useSession, useSessions, useStore, a
               onSetCollapsed={(next) => { actions.setCollapsed(next) }}
               onStar={(item, title, folderId) => {
                 starredStore.addStar({
-                  key: `${sessionId}:${item.key}`,
+                  key: nodeStarKey(sessionId, item.key),
+                  kind: 'node',
                   sessionId,
                   nodeKey: item.key,
-                  question: title,
+                  title,
                   timestamp: item.time,
                   folderId,
                 })
                 toast.success(t('starred.starSuccess'))
               }}
-              onUnstar={(item) => { starredStore.removeStar(`${sessionId}:${item.key}`) }}
+              onUnstar={(item) => { starredStore.removeStar(nodeStarKey(sessionId, item.key)) }}
               onTogglePin={(item) => {
                 pinsStore.toggle({
                   key: `${sessionId}:${item.key}`,
                   sessionId,
                   nodeKey: item.key,
-                  question: item.title.slice(0, 100),
+                  title: item.title.slice(0, 100),
                   timestamp: Date.now(),
                 })
               }}

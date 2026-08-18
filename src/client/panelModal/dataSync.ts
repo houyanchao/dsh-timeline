@@ -29,7 +29,7 @@ const BACKUP_SOURCE = 'AIChatTimeline-DSH'
 const APP_VERSION = '0.1.0'
 
 /** 插件自有存储 key 前缀（导出/覆盖清理的圈定范围）。 */
-const KEY_PREFIXES = ['dsh.timeline.', 'dsh-tl-'] as const
+const KEY_PREFIXES = ['dsh.timeline.'] as const
 
 /** 各 key 的合并策略所需的字段名（原 mergeByKey 的 DSH key 映射）。 */
 const STARRED_KEY = 'dsh.timeline.starred'

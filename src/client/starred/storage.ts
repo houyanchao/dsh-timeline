@@ -1,8 +1,8 @@
 /**
  * 收藏与文件夹全局存储：移植原扩展 StarStorageManager + FolderManager +
  * PinStorageManager 的数据层（原 chrome.storage.local → localStorage）。
- * - 收藏项：数组结构，key = `${sessionId}:${nodeKey}`（整会话 nodeKey='-1'，
- *   对应原 `chatTimelineStar:{url}:{index}` / index=-1 的页面级收藏）；
+ * - 收藏项：数组结构，kind 区分整会话/节点/闪记三类，主键由
+ *   sessionStarKey / nodeStarKey / noteStarKey 统一拼装；
  * - 文件夹：最多两级（根 + 子），createdAt/order/pinned/icon 字段齐平原版；
  * - 树构建 getStarredByFolder 逐行移植（置顶排序、未分类兜底）；
  * - 模块级单例 + Bus 订阅（React 组件 useSyncExternalStore 接入），
@@ -10,18 +10,38 @@
  */
 import { Bus } from '../ui/bus.ts'
 
+/** 收藏类型：整会话 / 会话内节点 / 闪记笔记。 */
+export type StarKind = 'session' | 'node' | 'note'
+
 /** 收藏项（原 chatTimelineStars 数组元素）。 */
 export interface StarItem {
-  /** `${sessionId}:${nodeKey}`；整会话为 `${sessionId}:-1`。 */
+  /** 主键，由 sessionStarKey / nodeStarKey / noteStarKey 拼装。 */
   readonly key: string
+  readonly kind: StarKind
+  /** 所属会话 id；note 项为空串。 */
   readonly sessionId: string
-  /** 节点 key；'-1' 表示整会话收藏（原 index=-1）。 */
+  /** node 项 = Chat 节点 key；note 项 = 笔记 id；session 项为空串。 */
   readonly nodeKey: string
-  /** 主题（原 question）。 */
-  readonly question: string
+  /** 显示主题（node = 提问文本；session/note = 用户编辑的标题）。 */
+  readonly title: string
   readonly timestamp: number
   readonly folderId: string | null
   readonly pinned?: boolean
+}
+
+/** 整会话收藏主键。 */
+export function sessionStarKey(sessionId: string): string {
+  return `session:${sessionId}`
+}
+
+/** 节点收藏主键。 */
+export function nodeStarKey(sessionId: string, nodeKey: string): string {
+  return `node:${sessionId}:${nodeKey}`
+}
+
+/** 闪记收藏主键。 */
+export function noteStarKey(noteId: string): string {
+  return `note:${noteId}`
 }
 
 /** 文件夹（原 folders 数组元素）。 */
@@ -393,11 +413,12 @@ export const starredUiStore = {
 
 /** 图钉项（原 chatTimelinePins 数组元素）。 */
 export interface PinItem {
-  /** `${sessionId}:${nodeKey}`。 */
+  /** `${sessionId}:${nodeKey}`（图钉只打在节点上，与收藏主键空间独立）。 */
   readonly key: string
   readonly sessionId: string
   readonly nodeKey: string
-  readonly question: string
+  /** 提问摘要。 */
+  readonly title: string
   readonly timestamp: number
 }
 

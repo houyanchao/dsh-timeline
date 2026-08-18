@@ -33,7 +33,7 @@ export const CHANGELOG_DATA = {
 }
 
 /** 已读版本存储 key（原 ait-changelog-read-version）。 */
-const STORAGE_KEY = 'dsh-tl-changelog-read-version'
+const STORAGE_KEY = 'dsh.timeline.changelog.readVersion'
 
 function loadReadVersion(): string | null {
   try {

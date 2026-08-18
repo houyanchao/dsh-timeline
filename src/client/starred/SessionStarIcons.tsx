@@ -1,6 +1,6 @@
 /**
  * 工作区会话行收藏角标：对齐原 adapter.refreshStarredIcons。
- * 仅整段收藏（nodeKey='-1'）在标题前插入橙星；宿主行是 React 托管，
+ * 仅整会话收藏（kind='session'）在标题前插入橙星；宿主行是 React 托管，
  * 重绘会清掉注入节点，故用 MutationObserver + rAF 回补。
  */
 import { useEffect, useSyncExternalStore } from 'react'
@@ -74,7 +74,7 @@ function removeStarIcon(row: HTMLElement): void {
 function refresh(sessionById: Readonly<Record<string, SessionTitleRow | undefined>>): void {
   const starredIds = new Set(
     starredStore.getAll()
-      .filter(item => item.nodeKey === '-1' && item.sessionId !== 'notepad')
+      .filter(item => item.kind === 'session')
       .map(item => item.sessionId),
   )
   const rows = collectSessionRows()

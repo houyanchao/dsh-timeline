@@ -13,11 +13,11 @@ import type { NS } from '../locales.ts'
 import { Bus } from '../ui/bus.ts'
 import { tooltip } from '../ui/tooltip.tsx'
 import { popconfirm } from '../ui/popconfirm.tsx'
-import { starredStore } from '../starred/storage.ts'
+import { noteStarKey, starredStore } from '../starred/storage.ts'
 import { starEditModal } from '../timeline/StarModal.tsx'
 import {
   DEFAULT_HEIGHT, DEFAULT_WIDTH, MIN_HEIGHT, MIN_WIDTH,
-  loadGeometry, noteStarKey, notesStore, saveGeometry, type Note,
+  loadGeometry, notesStore, saveGeometry, type Note,
 } from './storage.ts'
 import css from './notepad.module.css'
 
@@ -439,7 +439,7 @@ export function NotepadHost({ dark, t }: NotepadHostProps) {
     if (note === undefined) return
     const starKey = noteStarKey(state.activeNoteId)
     const existing = starredStore.findByKey(starKey)
-    const defaultTitle = existing?.question ?? extractTitle(note.content)
+    const defaultTitle = existing?.title ?? extractTitle(note.content)
 
     const result = await starEditModal.show({
       title: t('starred.starChat'),
@@ -453,9 +453,10 @@ export function NotepadHost({ dark, t }: NotepadHostProps) {
     }
     starredStore.addStar({
       key: starKey,
-      sessionId: 'notepad',
+      kind: 'note',
+      sessionId: '',
       nodeKey: state.activeNoteId,
-      question: result.value.trim() !== '' ? result.value.trim() : defaultTitle,
+      title: result.value.trim() !== '' ? result.value.trim() : defaultTitle,
       timestamp: Date.now(),
       folderId: result.folderId,
     })
@@ -589,8 +590,8 @@ export function NotepadHost({ dark, t }: NotepadHostProps) {
                     ? (
                       <div className={css.itemFolderLine}>
                         <span className={css.itemFolder}>{path}</span>
-                        {star !== undefined && star.question !== ''
-                          ? <span className={css.itemStarTitle}>{star.question}</span>
+                        {star !== undefined && star.title !== ''
+                          ? <span className={css.itemStarTitle}>{star.title}</span>
                           : null}
                       </div>
                     )
@@ -656,8 +657,8 @@ export function NotepadHost({ dark, t }: NotepadHostProps) {
                 ? (
                   <span className={css.locationText}>
                     <span className={css.locFolder}>{folderPath}</span>
-                    {activeStar !== undefined && activeStar.question !== ''
-                      ? <span className={css.locTitle}>{activeStar.question}</span>
+                    {activeStar !== undefined && activeStar.title !== ''
+                      ? <span className={css.locTitle}>{activeStar.title}</span>
                       : null}
                   </span>
                 )

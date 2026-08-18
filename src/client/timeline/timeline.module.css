@@ -122,13 +122,15 @@
   height: max(200px, calc(100vh - 120px - 120px));
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* 轨道向左伸出图钉沟槽，右缘仍对齐轴条。 */
+  align-items: flex-end;
   border-radius: 12px;
   background-color: var(--tl-bar-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: background-color 0.3s ease;
   overflow: visible;
+  /* 原版去掉 paint containment，允许图钉画在轴条外。 */
   contain: layout;
 }
 
@@ -138,11 +140,17 @@
               inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-/* 轨道（.ait-timeline-track）：内容可高于可视区，随主滚动联动 */
+/* 轨道（.ait-timeline-track）：内容可高于可视区，随主滚动联动。
+   原版 overflow: visible 是为了让图钉露在轴条外；这里必须 overflow-y: auto
+   才能跟会话滚动同步。overflow-x 与 overflow-y 不能一个 visible 一个 auto
+   （规范会把 visible 算成 auto 并裁掉左侧图钉），所以加 18px 左沟槽，
+   让 left: -18px 的图钉落在滚动容器的 padding box 内。 */
 .track {
   position: relative;
-  width: 100%;
+  width: calc(100% + 18px);
   height: 100%;
+  padding-left: 18px;
+  box-sizing: border-box;
   overflow: hidden auto;
   scrollbar-width: none;
 }

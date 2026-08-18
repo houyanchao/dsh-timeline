@@ -21,7 +21,7 @@ import { smoothScrollTo } from '../timeline/engine.ts'
 import { starEditModal } from '../timeline/StarModal.tsx'
 import { notepad } from '../notepad/NotepadPanel.tsx'
 import {
-  pendingNavigateStore, starredStore, starredUiStore,
+  pendingNavigateStore, sessionStarKey, starredStore, starredUiStore,
   type FolderNode, type StarItem,
 } from './storage.ts'
 import { copyText, createFolderFlow, deleteFolderFlow, editFolderFlow } from './actions.tsx'
@@ -125,12 +125,12 @@ export function StarredTree({
   const navigateToItem = (item: StarItem): void => {
     const { currentSessionId: cur, openSession: open, onAfterNavigate: after } = ctxRef.current
     // 闪记笔记项：打开闪记面板并定位到笔记（原 notepad: 前缀分支）。
-    if (item.sessionId === 'notepad') {
+    if (item.kind === 'note') {
       notepad.openNote(item.nodeKey)
       after()
       return
     }
-    const needsScroll = item.nodeKey !== '-1'
+    const needsScroll = item.kind === 'node'
     if (item.sessionId === cur) {
       if (needsScroll) {
         const port = findScrollContainer()
@@ -150,12 +150,12 @@ export function StarredTree({
   const editStarred = async (item: StarItem): Promise<void> => {
     const result = await starEditModal.show({
       title: t('starred.edit'),
-      defaultValue: item.question,
+      defaultValue: item.title,
       defaultFolderId: item.folderId,
     })
     if (result === null || result.value.trim() === '') return
-    const updates: { question?: string; folderId?: string | null } = {}
-    if (result.value.trim() !== item.question) updates.question = result.value.trim()
+    const updates: { title?: string; folderId?: string | null } = {}
+    if (result.value.trim() !== item.title) updates.title = result.value.trim()
     if (result.folderId !== item.folderId) updates.folderId = result.folderId
     if (Object.keys(updates).length > 0) {
       starredStore.updateStar(item.key, updates)
@@ -223,7 +223,7 @@ export function StarredTree({
       {
         label: t('starred.copy'),
         icon: <CopyMenuIcon />,
-        onClick: () => { void copyText(item.question, t) },
+        onClick: () => { void copyText(item.title, t) },
       },
       { type: 'divider' },
       {
@@ -354,7 +354,7 @@ export function StarredTree({
       hoveredName = name
       const itemEl = name.closest(`.${css.item}`)
       if (itemEl instanceof HTMLElement) {
-        tooltip.show('starred-item-name', itemEl, item.question, { placement: 'right' })
+        tooltip.show('starred-item-name', itemEl, item.title, { placement: 'right' })
       }
     }
 
@@ -476,7 +476,7 @@ export function StarredTree({
         key,
         sourceFolderId: item.folderId,
         sourceEl: itemEl,
-        title: item.question,
+        title: item.title,
         active: false,
         ghost: null,
       }
@@ -575,7 +575,7 @@ export function StarredTree({
     ): void => {
       const rawId = folderEl.getAttribute('data-folder-id')
       const actualFolderId = rawId === null || rawId === DEFAULT_FOLDER_ID ? null : rawId
-      const key = `${sessionId}:-1`
+      const key = sessionStarKey(sessionId)
       const existing = starredStore.findByKey(key)
       const tt = ctxRef.current.t
       if (existing !== undefined) {
@@ -591,9 +591,10 @@ export function StarredTree({
       }
       starredStore.addStar({
         key,
+        kind: 'session',
         sessionId,
-        nodeKey: '-1',
-        question: title.slice(0, 100),
+        nodeKey: '',
+        title: title.slice(0, 100),
         timestamp: Date.now(),
         folderId: actualFolderId,
       })
@@ -828,8 +829,8 @@ export function StarredTree({
   // ==== 渲染 ====
 
   const renderItem = (item: StarItem): React.ReactNode => {
-    const isNotepad = item.sessionId === 'notepad'
-    const isNodeLevel = !isNotepad && item.nodeKey !== '-1'
+    const isNotepad = item.kind === 'note'
+    const isNodeLevel = item.kind === 'node'
     const isActive = !isNotepad && item.sessionId === currentSessionId
     // 闪记项保留铅笔图标；单平台不再展示 DeepSeek logo。
     const logo = isNotepad
@@ -849,7 +850,7 @@ export function StarredTree({
         {isNodeLevel
           ? <span className={css.itemActiveMarker}><ActiveMarkerIcon /></span>
           : null}
-        <div className={css.itemName}>{item.question}</div>
+        <div className={css.itemName}>{item.title}</div>
         <div className={css.itemActions}>
           {item.pinned === true
             ? <span className={css.pinIndicator}><PinIndicatorIcon /></span>
@@ -864,7 +865,7 @@ export function StarredTree({
 
   // 搜索匹配（原 _matchesSearch：仅匹配收藏项主题）。
   const matchesSearch = (item: StarItem): boolean =>
-    searchQuery === '' || item.question.toLowerCase().includes(searchQuery)
+    searchQuery === '' || item.title.toLowerCase().includes(searchQuery)
 
   const renderFolder = (folder: FolderNode, level: number): React.ReactNode => {
     // 原 renderFolder 搜索分支：文件夹名命中显示全部项；否则过滤项，

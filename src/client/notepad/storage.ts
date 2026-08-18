@@ -120,7 +120,3 @@ export function saveGeometry(geometry: NotepadGeometry): void {
   try { localStorage.setItem(STATE_KEY, JSON.stringify(geometry)) } catch { /* 忽略 */ }
 }
 
-/** 笔记对应的收藏 key（原 `chatTimelineStar:notepad:{noteId}`）。 */
-export function noteStarKey(noteId: string): string {
-  return `notepad:${noteId}`
-}
