@@ -49,7 +49,7 @@ Install from npm (recommended):
 dsh plugin --profile web add dsh-timeline
 
 # launch DeepSeek Harness
-dsh --profile web
+dsh web
 ```
 
 Upgrade:

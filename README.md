@@ -49,7 +49,7 @@ DSH Timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/dee
 dsh plugin --profile web add dsh-timeline
 
 # 启动 DeepSeek Harness
-dsh --profile web
+dsh web
 ```
 
 升级：
