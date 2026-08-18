@@ -27,6 +27,32 @@ function isTextBlock(block: unknown): block is TextishBlock & { text: string } {
     && typeof (block as TextishBlock).text === 'string'
 }
 
+/** 与助手节点 blocks 对齐的最小读取形态。 */
+interface AssistantTextishBlock {
+  readonly kind?: string
+  readonly text?: string
+}
+
+/**
+ * 把助手消息的 text 块拼成预览（推理/工具块跳过）。
+ * @param blocks - 助手 blocks。
+ * @param maxLength - 防御性最大长度，默认 2000。
+ * @returns 预览文本；无正文时返回空字符串。
+ */
+export function summarizeAssistantBlocks(blocks: readonly unknown[], maxLength = 2000): string {
+  const text = blocks
+    .map((block) => {
+      if (typeof block !== 'object' || block === null) return ''
+      const item = block as AssistantTextishBlock
+      return item.kind === 'text' && typeof item.text === 'string' ? item.text : ''
+    })
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, maxLength)}…`
+}
+
 /**
  * 提问时间的展示格式（移植原扩展 ChatTimeRecorder.formatNodeTime）：
  * 今天只显示时分；今年显示月日时分；跨年补年份。

@@ -4,9 +4,10 @@
  * - 透明遮罩阻挡下层点击；点击外部/滚动/resize 关闭；
  * - 菜单项：图标（ReactNode）、分割线、禁用、danger / create-action 变体；
  * - 子菜单：hover 展开、最多三级、右侧优先左侧回退、mouseleave 分层关闭。
- * 命令式 API（dropdown.show）+ React 宿主（DropdownHost，挂 shell.overlay）。
+ * 命令式 API（dropdown.show）+ React 宿主（DropdownHost，portal 到 body）。
  */
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Bus } from './bus.ts'
 import css from './ui.module.css'
 
@@ -440,11 +441,19 @@ function DropdownInstance({ state }: { readonly state: DropdownState }) {
 
 /**
  * Dropdown 宿主。
+ * portal 到 body：收藏弹窗等也在 body / 更高层叠上下文，挂在 shell.overlay
+ * 里会被挡住，表现为「收藏到」点击无反应。
+ * @param props - dark 为宿主主题（portal 后需自带 data-theme 才能吃暗色样式）。
  * @returns 遮罩 + 主菜单 + 已展开的子菜单链。
  */
-export function DropdownHost() {
+export function DropdownHost({ dark }: { readonly dark: boolean }) {
   const state = useSyncExternalStore(bus.subscribe, () => bus.get())
   if (state === null) return null
   // key 含 seq：退出动画期间重开同 id 菜单时实例重建、重新定位（原版每次 show 重建 DOM）。
-  return <DropdownInstance key={`${state.id}:${String(state.seq)}`} state={state} />
+  return createPortal(
+    <div className={css.host} data-theme={dark ? 'dark' : 'light'}>
+      <DropdownInstance key={`${state.id}:${String(state.seq)}`} state={state} />
+    </div>,
+    document.body,
+  )
 }

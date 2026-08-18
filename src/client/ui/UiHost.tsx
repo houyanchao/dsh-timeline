@@ -13,7 +13,6 @@ import { NotepadHost } from '../notepad/NotepadPanel.tsx'
 import { PanelHost } from '../panelModal/PanelHost.tsx'
 import { ChangelogHost } from '../changelog/ChangelogModal.tsx'
 import { FormulaHost } from '../formula/FormulaHost.tsx'
-import starredCss from '../starred/starred.module.css'
 import { ToastHost, toast } from './toast.tsx'
 import { TooltipHost, tooltip } from './tooltip.tsx'
 import { DropdownHost, dropdown } from './dropdown.tsx'
@@ -55,12 +54,13 @@ export function UiHost({ t, useSessions, openSession }: UiHostProps) {
     <div className={css.host} data-theme={dark ? 'dark' : 'light'}>
       <ToastHost dark={dark} />
       <TooltipHost dark={dark} />
-      <DropdownHost />
+      <DropdownHost dark={dark} />
       <PopconfirmHost
         defaultConfirmText={t('common.confirm')}
         defaultCancelText={t('common.cancel')}
       />
       <InputModalHost
+        dark={dark}
         defaults={{
           placeholder: t('common.inputPlaceholder'),
           requiredMessage: t('common.inputRequired'),
@@ -68,10 +68,7 @@ export function UiHost({ t, useSessions, openSession }: UiHostProps) {
           cancelText: t('common.cancel'),
         }}
       />
-      {/* 文件夹编辑弹窗样式挂在收藏模块主题容器下。 */}
-      <div className={starredCss.root} data-theme={dark ? 'dark' : 'light'}>
-        <FolderEditModalHost />
-      </div>
+      <FolderEditModalHost dark={dark} />
       <StarEditModalHost t={t} dark={dark} />
       <NotepadHost t={t} dark={dark} />
       <PanelHost t={t} currentSessionId={currentSessionId} openSession={openSession} />

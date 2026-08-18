@@ -6,8 +6,9 @@
  *
  * 与原版的架构性适配：
  * - 门控：原「平台 features.quickAsk + isConversationRoute + URL 变化监听」
- *   在 DSH 折叠为槽位挂载 + settingsStore 开关，并在选区校验中要求
- *   [data-conversation-scroll] 存在（容器缺失视为非会话页，等价 isConversationRoute）；
+ *   在 DSH 折叠为槽位挂载（composer 存在期）+ settingsStore 开关 + 会话快照
+ *   blank 位（空白会话无正文可选，不挂选区监听）；[data-conversation-scroll]
+ *   仅用于选区包含性校验，不再兼任路由探测；
  * - 插入：原 _insertToInput 的 contenteditable / Slate 分支为多平台服务，
  *   DSH composer 是受控 textarea，走 inputActions.setDraft（textarea 分支等价物）；
  * - 事件委托（原 eventDelegateManager，解决长时间停留后监听失效）由 React
@@ -107,8 +108,8 @@ function isValidSelection(selection: Selection, buttonEl: HTMLElement | null): b
   if (buttonEl !== null && buttonEl.contains(element)) return false
   if (element.closest(`.${uiCss.host}`) !== null) return false
 
-  // 必须在会话对话区域内（白名单机制）。容器不存在视为非会话页，
-  // 整体禁用（原 index.js 的 isConversationRoute 门控：首页等非对话页面不显示）
+  // 必须在会话对话区域内（白名单机制）。滚动容器是 DSH 常驻契约锚点，
+  // 这里只做选区包含性校验；路由/会话门控由槽位生命周期 + blank 位负责。
   const conv = document.querySelector(SCROLL_SELECTOR)
   if (conv === null || !conv.isConnected) return false
 
@@ -175,9 +176,11 @@ export type QuickAskButtonProps = PropsRuntime<'conversation.input.left'> & Prop
  * @param props - 槽位运行时 + 词典。
  * @returns 有有效选区时渲染浮动按钮，否则不渲染。
  */
-export function QuickAskButton({ useInput, inputActions, t }: QuickAskButtonProps) {
+export function QuickAskButton({ useInput, useSession, inputActions, t }: QuickAskButtonProps) {
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
-  const enabled = settings.quickAskEnabled
+  // 空白会话（hero 态）没有可选正文，不挂选区监听（原 isConversationRoute 门控的快照等价物）。
+  const blank = useSession(s => s.blank)
+  const enabled = settings.quickAskEnabled && !blank
   const draft = useInput(s => s.draft)
   const draftRef = useRef(draft)
   draftRef.current = draft

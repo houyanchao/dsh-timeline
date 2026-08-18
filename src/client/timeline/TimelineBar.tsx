@@ -20,6 +20,8 @@ export interface TimelineItem {
   readonly title: string
   /** 提问时间（Unix epoch ms）。 */
   readonly time: number
+  /** 随后一条可见助手回复的正文预览；尚无回复时为空。 */
+  readonly reply: string
 }
 
 /** 轴条组件 props。 */

@@ -5,7 +5,9 @@
  * - hover 操作（… 菜单：置顶/编辑/移动/复制/取消收藏，文件夹：新建子级/
  *   置顶/重命名/删除）；名称溢出时右侧 tooltip；
  * - 收藏项自定义鼠标拖拽（5px 阈值 + 幽灵 + 精确落点指示 + 拖出取消收藏），
- *   文件夹 HTML5 拖拽（同级排序 before/after + 跨级 inside）。
+ *   文件夹 HTML5 拖拽（同级排序 before/after + 跨级 inside）；
+ *   宿主工作区会话拖入走宿主原生 HTML5 拖拽（不拦 dragstart，
+ *   只在 dragover/drop 装饰落点，text/plain 即 sessionId）。
  */
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -23,7 +25,6 @@ import {
   type FolderNode, type StarItem,
 } from './storage.ts'
 import { copyText, createFolderFlow, deleteFolderFlow, editFolderFlow } from './actions.tsx'
-import { DEEPSEEK_LOGO_DATA_URL } from '../shared/deepseekLogo.ts'
 import {
   ActiveMarkerIcon, ChevronIcon, CopyMenuIcon, DeleteMenuIcon, DotsIcon,
   EditMenuIcon, FolderClosedIcon, FolderOpenIcon, MoveMenuIcon, NewSubfolderMenuIcon,
@@ -47,8 +48,8 @@ export interface StarredTreeProps {
   readonly toastColors?: typeof FOLDER_TOAST_OPTIONS['color']
   /** 展开态使用面板独立作用域（原 tab 的 persistent folderStates，与侧栏互不影响）。 */
   readonly localExpansion?: boolean
-  /** 收藏项显示平台 logo（原 showPlatformIcon：sidebar false / tab true）。 */
-  readonly showPlatformIcon?: boolean
+  /** 解析宿主会话标题；返回 null 表示不是会话（工作区行等）。 */
+  readonly resolveSessionTitle?: (sessionId: string) => string | null
   readonly t: T
 }
 
@@ -81,7 +82,7 @@ const panelExpansionBus = new Bus<Readonly<Record<string, boolean>>>({})
 /** 收藏树组件。 */
 export function StarredTree({
   currentSessionId, openSession, onAfterNavigate, searchQuery = '',
-  searchEmptyClassName, toastColors, localExpansion, showPlatformIcon, t,
+  searchEmptyClassName, toastColors, localExpansion, resolveSessionTitle, t,
 }: StarredTreeProps) {
   const state = useSyncExternalStore(starredStore.subscribe, () => starredStore.getState())
   const ui = useSyncExternalStore(starredUiStore.subscribe, () => starredUiStore.getState())
@@ -117,8 +118,8 @@ export function StarredTree({
     dataRef.current = { items, folders }
   }
 
-  const ctxRef = useRef({ currentSessionId, openSession, onAfterNavigate, t })
-  ctxRef.current = { currentSessionId, openSession, onAfterNavigate, t }
+  const ctxRef = useRef({ currentSessionId, openSession, onAfterNavigate, resolveSessionTitle, t })
+  ctxRef.current = { currentSessionId, openSession, onAfterNavigate, resolveSessionTitle, t }
 
   // ==== 导航（原 _navigateToItem，URL 语义换成 sessionId） ====
   const navigateToItem = (item: StarItem): void => {
@@ -562,6 +563,46 @@ export function StarredTree({
       if (e.key === 'Escape' && itemDrag?.active === true) itemDragCleanup()
     }
 
+    // ---- 宿主工作区会话 → 文件夹 ----
+    // 走宿主原生 HTML5 拖拽（会话行本身 draggable，text/plain 即 sessionId），
+    // 只在 dragover/drop 里装饰落点。不得 preventDefault 宿主的 dragstart：
+    // 那会取消原生拖拽，宿主排序功能失效且其 drag state 收不到 dragend 而泄漏。
+    const handleExternalSessionDrop = (
+      sessionId: string,
+      title: string,
+      folderEl: HTMLElement,
+      dropOpts?: { refKey: string; position: 'before' | 'after' },
+    ): void => {
+      const rawId = folderEl.getAttribute('data-folder-id')
+      const actualFolderId = rawId === null || rawId === DEFAULT_FOLDER_ID ? null : rawId
+      const key = `${sessionId}:-1`
+      const existing = starredStore.findByKey(key)
+      const tt = ctxRef.current.t
+      if (existing !== undefined) {
+        if (dropOpts !== undefined) {
+          starredStore.reorderStarredInFolder(key, actualFolderId, dropOpts.refKey, dropOpts.position)
+        } else if ((existing.folderId ?? null) !== actualFolderId) {
+          starredStore.moveStarredToFolder(key, actualFolderId)
+        } else {
+          return
+        }
+        toast.success(tt('starred.moved'), headerOf(folderEl), toastOptsRef.current)
+        return
+      }
+      starredStore.addStar({
+        key,
+        sessionId,
+        nodeKey: '-1',
+        question: title.slice(0, 100),
+        timestamp: Date.now(),
+        folderId: actualFolderId,
+      })
+      if (dropOpts !== undefined) {
+        starredStore.reorderStarredInFolder(key, actualFolderId, dropOpts.refKey, dropOpts.position)
+      }
+      toast.success(tt('starred.starSuccess'), headerOf(folderEl), toastOptsRef.current)
+    }
+
     // ---- 文件夹 HTML5 拖拽（原 onDragStart/Over/Drop/End） ----
     interface FolderDrag {
       id: string
@@ -605,7 +646,34 @@ export function StarredTree({
     }
 
     const onDragOver = (e: DragEvent): void => {
-      if (folderDrag === null) return
+      if (folderDrag === null) {
+        // 外部会话拖入仅在能校验 sessionId 的实例开放（dragover 阶段
+        // 读不到 dataTransfer 数据，known 校验推迟到 drop）。
+        if (ctxRef.current.resolveSessionTitle === undefined) return
+        // DataTransfer.types 是 frozen array（旧引擎为可迭代的 DOMStringList），
+        // 统一 Array.from 后判断。
+        const types = e.dataTransfer?.types
+        const hasPlain = types !== undefined && Array.from(types).includes('text/plain')
+        if (!hasPlain) return
+        const folderEl = e.target instanceof Element ? e.target.closest(`.${css.folderItem}`) : null
+        if (!(folderEl instanceof HTMLElement)) {
+          clearDropIndicator()
+          clearItemDropIndicator()
+          return
+        }
+        e.preventDefault()
+        if (e.dataTransfer !== null) e.dataTransfer.dropEffect = 'copy'
+        const itemEl = e.target instanceof Element ? e.target.closest(`.${css.item}`) : null
+        if (itemEl instanceof HTMLElement) {
+          const rect = itemEl.getBoundingClientRect()
+          setItemDropIndicator(itemEl, e.clientY < rect.top + rect.height / 2 ? 'before' : 'after')
+          setDropIndicator(folderEl, 'inside')
+        } else {
+          clearItemDropIndicator()
+          setDropIndicator(folderEl, 'inside')
+        }
+        return
+      }
       const target = e.target
       const folderEl = target instanceof Element ? target.closest(`.${css.folderItem}`) : null
       if (!(folderEl instanceof HTMLElement)) { clearDropIndicator(); return }
@@ -636,7 +704,30 @@ export function StarredTree({
     }
 
     const onDrop = (e: DragEvent): void => {
-      if (folderDrag === null) return
+      if (folderDrag === null) {
+        e.preventDefault()
+        const folderEl = e.target instanceof Element ? e.target.closest(`.${css.folderItem}`) : null
+        const sessionId = e.dataTransfer?.getData('text/plain') ?? ''
+        // 必须反查出已知会话标题：宿主工作区行的 text/plain 也可能是
+        // workspace key 等非会话数据，未知 id 一律不落收藏。
+        const resolved = sessionId !== '' ? ctxRef.current.resolveSessionTitle?.(sessionId) ?? null : null
+        if (folderEl instanceof HTMLElement && resolved !== null) {
+          const title = resolved
+          const itemEl = e.target instanceof Element ? e.target.closest(`.${css.item}`) : null
+          if (itemEl instanceof HTMLElement) {
+            const rect = itemEl.getBoundingClientRect()
+            handleExternalSessionDrop(sessionId, title, folderEl, {
+              refKey: itemEl.getAttribute('data-key') ?? '',
+              position: e.clientY < rect.top + rect.height / 2 ? 'before' : 'after',
+            })
+          } else {
+            handleExternalSessionDrop(sessionId, title, folderEl)
+          }
+        }
+        clearDropIndicator()
+        clearItemDropIndicator()
+        return
+      }
       e.preventDefault()
       const target = e.target
       const folderEl = target instanceof Element ? target.closest(`.${css.folderItem}`) : null
@@ -667,6 +758,23 @@ export function StarredTree({
 
     const onDragEnd = (): void => { folderDragCleanup() }
 
+    // 拖着离开树容器时清掉落点指示（dragover 只在容器内触发，
+    // 拖出边界后没有事件再来清理）。子元素间移动的 dragleave 不算离开。
+    const onDragLeave = (e: DragEvent): void => {
+      const next = e.relatedTarget
+      if (next instanceof Node && container.contains(next)) return
+      clearDropIndicator()
+      clearItemDropIndicator()
+    }
+
+    // 外部会话拖拽的 dragend 发生在宿主会话行上、不经过本容器；
+    // 在 document 兜底清指示，覆盖「拖到别处松手 / Esc 取消」。
+    const onDocDragEnd = (): void => {
+      if (folderDrag !== null) return
+      clearDropIndicator()
+      clearItemDropIndicator()
+    }
+
     container.addEventListener('click', onClick)
     container.addEventListener('dblclick', onDblClick)
     container.addEventListener('mouseover', onMouseover)
@@ -674,8 +782,10 @@ export function StarredTree({
     container.addEventListener('mousedown', onItemMouseDown, true)
     container.addEventListener('dragstart', onDragStart)
     container.addEventListener('dragover', onDragOver)
+    container.addEventListener('dragleave', onDragLeave)
     container.addEventListener('drop', onDrop)
     container.addEventListener('dragend', onDragEnd)
+    document.addEventListener('dragend', onDocDragEnd)
     document.addEventListener('mousemove', onItemMouseMove)
     document.addEventListener('mouseup', onItemMouseUp)
     document.addEventListener('keydown', onItemKeyDown)
@@ -688,8 +798,10 @@ export function StarredTree({
       container.removeEventListener('mousedown', onItemMouseDown, true)
       container.removeEventListener('dragstart', onDragStart)
       container.removeEventListener('dragover', onDragOver)
+      container.removeEventListener('dragleave', onDragLeave)
       container.removeEventListener('drop', onDrop)
       container.removeEventListener('dragend', onDragEnd)
+      document.removeEventListener('dragend', onDocDragEnd)
       document.removeEventListener('mousemove', onItemMouseMove)
       document.removeEventListener('mouseup', onItemMouseUp)
       document.removeEventListener('keydown', onItemKeyDown)
@@ -719,13 +831,10 @@ export function StarredTree({
     const isNotepad = item.sessionId === 'notepad'
     const isNodeLevel = !isNotepad && item.nodeKey !== '-1'
     const isActive = !isNotepad && item.sessionId === currentSessionId
-    // 原 renderStarredItem：闪记项固定铅笔图标；普通项仅 tab 场景显示平台 logo，
-    // sidebar 场景不显示图标。
+    // 闪记项保留铅笔图标；单平台不再展示 DeepSeek logo。
     const logo = isNotepad
       ? <div className={css.itemLogo}><NotepadItemIcon /></div>
-      : (showPlatformIcon === true
-          ? <div className={css.itemLogo}><img src={DEEPSEEK_LOGO_DATA_URL} alt="DeepSeek" /></div>
-          : null)
+      : null
     return (
       <div
         key={item.key}

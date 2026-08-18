@@ -13,7 +13,7 @@ export interface Prompt {
   readonly pinned?: boolean
 }
 
-const STORAGE_KEY = 'dsh.timeline.prompts.v1'
+const STORAGE_KEY = 'dsh.timeline.prompts'
 
 function load(): readonly Prompt[] {
   try {

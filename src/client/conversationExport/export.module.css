@@ -442,6 +442,8 @@
   min-width: 36px;
   width: auto;
   height: 36px;
+  /* 宿主 headerActions gap 为 8px，收 3px 让收藏/导出更紧。 */
+  margin-left: -3px;
   padding: 0 10px;
   background: transparent;
   border: none;
@@ -451,13 +453,18 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: #cfd3d6;
+  color: #61666b;
   font-size: 12px;
   font-weight: 400;
   line-height: 1;
   white-space: nowrap;
   transition: background-color 0.2s;
   position: relative;
+}
+
+/* 宿主深色主题（ThemePresenter 打在 body 上的 data-ds-dark-theme）。 */
+:global(body[data-ds-dark-theme]) .exportBtn {
+  color: #cfd3d6;
 }
 
 .exportBtn:hover {
