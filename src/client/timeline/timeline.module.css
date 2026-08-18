@@ -21,6 +21,10 @@
   --tl-active-ring: 3px;
   --tl-star-ring: 5px;
   --tl-track-padding: 16px;
+  /* 图钉相对轨道内容的左移量（原版视觉位置）。 */
+  --tl-pin-offset: 18px;
+  /* 轨道左沟槽：须大于 --tl-pin-offset，多出的部分是横向漂移余量。 */
+  --tl-pin-gutter: 24px;
   --tl-tooltip-max: 288px;
   --tl-hit-size: 30px;
   --tl-compact-line-width: 18px;
@@ -130,7 +134,7 @@
   -webkit-backdrop-filter: blur(8px);
   transition: background-color 0.3s ease;
   overflow: visible;
-  /* 原版去掉 paint containment，允许图钉画在轴条外。 */
+  /* 只做 layout containment：paint containment 会裁掉画在轴条外的图钉。 */
   contain: layout;
 }
 
@@ -141,18 +145,22 @@
 }
 
 /* 轨道（.ait-timeline-track）：内容可高于可视区，随主滚动联动。
-   原版 overflow: visible 是为了让图钉露在轴条外；这里必须 overflow-y: auto
-   才能跟会话滚动同步。overflow-x 与 overflow-y 不能一个 visible 一个 auto
-   （规范会把 visible 算成 auto 并裁掉左侧图钉），所以加 18px 左沟槽，
-   让 left: -18px 的图钉落在滚动容器的 padding box 内。 */
+   原版靠 overflow: visible 让图钉露在轴条外；这里 overflow-y 必须是 auto
+   才能跟会话滚动同步，而 overflow-x: visible 会被规范强制算成 auto 并裁掉
+   图钉，所以改用左沟槽把图钉纳入 padding box。
+   沟槽须宽于图钉偏移：圆点命中区（30px）比内容盒（28px）宽，轨道因此是
+   横向滚动容器，scrollLeft 漂移会把等宽沟槽里的图钉推出裁剪边（clip 在这里
+   无用，规范会因纵轴可滚动把它降级成 hidden）。
+   沟槽不参与命中，否则会在轴条左侧形成一条吞掉宿主点击的透明竖条。 */
 .track {
   position: relative;
-  width: calc(100% + 18px);
+  width: calc(100% + var(--tl-pin-gutter));
   height: 100%;
-  padding-left: 18px;
+  padding-left: var(--tl-pin-gutter);
   box-sizing: border-box;
   overflow: hidden auto;
   scrollbar-width: none;
+  pointer-events: none;
 }
 
 .track::-webkit-scrollbar {
@@ -169,7 +177,7 @@
 /* 图钉标记（.timeline-pin-marker）：渲染在轴条左侧、与圆点同法定位 */
 .pinMarker {
   position: absolute;
-  left: -18px;
+  left: calc(-1 * var(--tl-pin-offset));
   top: calc(var(--tl-track-padding) + (100% - 2 * var(--tl-track-padding)) * var(--n, 0));
   transform: translateY(-50%);
   width: 16px;
@@ -196,6 +204,8 @@
   outline: none;
   cursor: pointer;
   padding: 0;
+  /* 轨道整体不命中（见 .track），圆点单独恢复交互。 */
+  pointer-events: auto;
 }
 
 .dot::after {

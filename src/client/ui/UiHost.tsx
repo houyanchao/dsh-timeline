@@ -53,7 +53,6 @@ export function UiHost({ t, useSessions, openSession }: UiHostProps) {
   return (
     <div className={css.host} data-theme={dark ? 'dark' : 'light'}>
       <ToastHost dark={dark} />
-      <TooltipHost dark={dark} />
       <DropdownHost dark={dark} />
       <PopconfirmHost
         defaultConfirmText={t('common.confirm')}
@@ -75,6 +74,9 @@ export function UiHost({ t, useSessions, openSession }: UiHostProps) {
       <ChangelogHost t={t} />
       {/* 公式复制（hover 高亮 + tooltip + 点击复制 LaTeX/MathML）。 */}
       <FormulaHost t={t} dark={dark} currentSessionId={currentSessionId} />
+      {/* Tooltip 必须最后渲染：各浮层 z-index 都顶格 2147483647（更大的值会被
+          钳位到该上限），同 z 按 DOM 顺序绘制，排在末尾才能盖住弹窗类浮层。 */}
+      <TooltipHost dark={dark} />
     </div>
   )
 }
