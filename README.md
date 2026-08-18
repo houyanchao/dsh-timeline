@@ -40,9 +40,30 @@ DSH Timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/dee
 - 💾 **数据备份** — 插件数据一键导出 / 导入（JSON）
 - 🎨 **贴合宿主** — 深浅主题实时跟随，中英文界面，逐功能开关
 
+## 📦 安装
+
+从 npm 安装（推荐）：
+
+```bash
+# 安装 dsh-timeline 插件
+dsh plugin --profile web add dsh-timeline
+
+# 启动 DeepSeek Harness
+dsh --profile web
+```
+
+升级：
+
+```bash
+dsh plugin --profile web update dsh-timeline
+```
+
+> [!TIP]
+> 遇到 `command not found: dsh`？说明你是通过源码方式运行 DSH、没有安装全局 CLI。此时请在 DSH 源码仓库根目录下执行上述命令，并把开头的 `dsh` 换成 `pnpm dsh`，例如 `pnpm dsh plugin --profile web add dsh-timeline`。
+
 ## ⭐ 支持一下
 
-如果 Timeline 帮到了你，欢迎分享给朋友们，并在 GitHub 给个 Star，帮助更多人发现它！
+如果 dsh-timeline 帮到了你，欢迎分享给朋友们，并在 GitHub 给个 Star，帮助更多人发现它！
 
 ## 📄 许可证
 

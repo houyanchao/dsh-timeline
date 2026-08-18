@@ -40,9 +40,30 @@ The plugin blends right into the host UI: it follows the light / dark theme in r
 - 💾 **Data backup** — one-click export / import of all plugin data (JSON)
 - 🎨 **Native feel** — follows the host's light / dark theme, English / Chinese UI, per-feature toggles
 
+## 📦 Installation
+
+Install from npm (recommended):
+
+```bash
+# install the dsh-timeline plugin
+dsh plugin --profile web add dsh-timeline
+
+# launch DeepSeek Harness
+dsh --profile web
+```
+
+Upgrade:
+
+```bash
+dsh plugin --profile web update dsh-timeline
+```
+
+> [!TIP]
+> Seeing `command not found: dsh`? You are running DSH from a source checkout without the global CLI. Run the commands above from the root of the DSH source repository, replacing the leading `dsh` with `pnpm dsh` — e.g. `pnpm dsh plugin --profile web add dsh-timeline`.
+
 ## ⭐ Support
 
-If Timeline helped you, share it with your friends — and a GitHub Star helps more people discover it!
+If dsh-timeline helped you, share it with your friends — and a GitHub Star helps more people discover it!
 
 ## 📄 License
 
