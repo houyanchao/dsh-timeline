@@ -40,7 +40,6 @@ export function buildMarkdown(job: ExportJob, texts: CeTexts): string {
 
   lines.push(`# ${meta.title}`)
   const headerLines: string[] = []
-  if (options.showUrl && meta.url !== '') headerLines.push(`> ${texts.sourceLabel}: ${meta.url}`)
   if (options.showTime) headerLines.push(`> ${texts.timeLabel}: ${ceFormatLocalTime(meta.exportTime)}`)
   if (headerLines.length > 0) {
     lines.push('')
@@ -97,7 +96,6 @@ export function buildTxt(job: ExportJob, texts: CeTexts): string {
   const lines: string[] = []
 
   lines.push(meta.title)
-  if (options.showUrl && meta.url !== '') lines.push(`${texts.sourceLabel}: ${meta.url}`)
   if (options.showTime) lines.push(`${texts.timeLabel}: ${ceFormatLocalTime(meta.exportTime)}`)
   lines.push('='.repeat(40))
 
@@ -158,7 +156,6 @@ export function buildJson(job: ExportJob, texts: CeTexts): string {
     turnCount: turns.length,
     imageCount,
   }
-  if (options.showUrl && meta.url !== '') metadata.source = meta.url
   if (options.showTime) metadata.exportTime = ceFormatLocalTime(meta.exportTime)
 
   const conversation = turns.map(turn => ({
@@ -195,11 +192,8 @@ export function buildCsv(job: ExportJob, texts: CeTexts): string {
 
   const rows: string[] = []
 
-  // 头部信息（标题总是输出；来源/导出时间跟随开关）。
+  // 头部信息（标题总是输出；导出时间跟随开关）。
   rows.push(`${csvEscape(texts.titleLabel)},${csvEscape(meta.title)}`)
-  if (options.showUrl && meta.url !== '') {
-    rows.push(`${csvEscape(texts.sourceLabel)},${csvEscape(meta.url)}`)
-  }
   if (options.showTime) {
     rows.push(`${csvEscape(texts.timeLabel)},${csvEscape(ceFormatLocalTime(meta.exportTime))}`)
   }

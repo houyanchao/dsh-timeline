@@ -53,7 +53,7 @@ interface StarredState {
   readonly items: readonly StarItem[]
 }
 
-const STORAGE_KEY = 'dsh.timeline.starred.v1'
+const STORAGE_KEY = 'dsh.timeline.starred'
 
 function load(): StarredState {
   try {
@@ -341,11 +341,13 @@ export const starredStore = {
 
 // ==== 折叠/展开状态（原 sidebarStarredFolderStates / sidebarStarredCollapsed） ====
 
-const UI_KEY = 'dsh.timeline.starred.ui.v1'
+const UI_KEY = 'dsh.timeline.starred.ui'
 
 interface StarredUiState {
   readonly folderStates: Readonly<Record<string, boolean>>
   readonly collapsed: boolean
+  /** 侧栏内联列表折叠（与弹窗 collapsed 互不影响）。 */
+  readonly sidebarCollapsed: boolean
 }
 
 function loadUi(): StarredUiState {
@@ -356,10 +358,11 @@ function loadUi(): StarredUiState {
       return {
         folderStates: parsed.folderStates ?? {},
         collapsed: parsed.collapsed === true,
+        sidebarCollapsed: parsed.sidebarCollapsed === true,
       }
     }
   } catch { /* 回退默认 */ }
-  return { folderStates: {}, collapsed: false }
+  return { folderStates: {}, collapsed: false, sidebarCollapsed: false }
 }
 
 const uiBus = new Bus<StarredUiState>(loadUi())
@@ -379,6 +382,11 @@ export const starredUiStore = {
     uiBus.set(next)
     try { localStorage.setItem(UI_KEY, JSON.stringify(next)) } catch { /* 忽略 */ }
   },
+  setSidebarCollapsed(sidebarCollapsed: boolean): void {
+    const next = { ...uiBus.get(), sidebarCollapsed }
+    uiBus.set(next)
+    try { localStorage.setItem(UI_KEY, JSON.stringify(next)) } catch { /* 忽略 */ }
+  },
 }
 
 // ==== 图钉标记（原 PinStorageManager：chatTimelinePins） ====
@@ -393,7 +401,7 @@ export interface PinItem {
   readonly timestamp: number
 }
 
-const PINS_KEY = 'dsh.timeline.pins.v1'
+const PINS_KEY = 'dsh.timeline.pins'
 
 function loadPins(): readonly PinItem[] {
   try {

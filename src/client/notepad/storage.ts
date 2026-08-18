@@ -28,8 +28,8 @@ export const DEFAULT_HEIGHT = 370
 export const MIN_WIDTH = 240
 export const MIN_HEIGHT = 280
 
-const NOTES_KEY = 'dsh.timeline.notepad.notes.v1'
-const STATE_KEY = 'dsh.timeline.notepad.state.v1'
+const NOTES_KEY = 'dsh.timeline.notepad.notes'
+const STATE_KEY = 'dsh.timeline.notepad.state'
 
 function loadNotes(): readonly Note[] {
   try {

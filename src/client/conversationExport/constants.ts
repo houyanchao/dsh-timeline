@@ -14,7 +14,6 @@ export interface CeTexts {
   readonly sectionList: string
   readonly rangeAll: string
   readonly rangeSelect: string
-  readonly headerShowUrl: string
   readonly headerShowTime: string
   readonly headerShowConversationTime: string
   readonly askTimeLabel: string
@@ -35,7 +34,6 @@ export interface CeTexts {
   readonly failed: string
   readonly noConversation: string
   readonly needSelect: string
-  readonly sourceLabel: string
   readonly timeLabel: string
   readonly titleLabel: string
   readonly orderLabel: string
@@ -124,13 +122,11 @@ export interface ExportMeta {
   readonly title: string
   readonly platformId: string
   readonly platformName: string
-  readonly url: string
   readonly exportTime: Date
 }
 
 /** 导出任务选项。 */
 export interface ExportOptions {
-  readonly showUrl: boolean
   readonly showTime: boolean
   readonly showConversationTime: boolean
   readonly rangeId: string

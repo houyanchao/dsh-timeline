@@ -7,6 +7,7 @@
  * - CSS Modules 由 lightningcss 内联编译：import x.module.css 得到 hash 类名映射，
  *   css 文本在 factory 执行时注入 <style data-plugin>（卸载时由加载器移除）。
  */
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename, dirname, resolve as resolvePath } from 'node:path'
 import type { UserConfig } from 'tsdown'
@@ -59,14 +60,17 @@ const client: UserConfig = {
   noExternal: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
   plugins: [{
     name: 'dsh-css-modules-inline',
-    resolveId(source: string, importer: string | undefined) {
+    async resolveId(source: string, importer: string | undefined) {
       if (!source.endsWith('.module.css')) return null
       const abs = importer !== undefined ? resolvePath(dirname(importer), source) : source
-      return CSS_VIRTUAL_PREFIX + abs + CSS_VIRTUAL_SUFFIX
+      const hash = createHash('sha1').update(await readFile(abs)).digest('hex').slice(0, 10)
+      return `${CSS_VIRTUAL_PREFIX}${abs}?${hash}${CSS_VIRTUAL_SUFFIX}`
     },
     async load(virtualId: string) {
       if (!virtualId.startsWith(CSS_VIRTUAL_PREFIX)) return null
-      const fileId = virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+      const rest = virtualId.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
+      const q = rest.lastIndexOf('?')
+      const fileId = q === -1 ? rest : rest.slice(0, q)
       this.addWatchFile(fileId)
       const source = await readFile(fileId)
       const { code, exports: cssExports } = transform({

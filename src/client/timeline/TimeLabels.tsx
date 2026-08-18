@@ -29,14 +29,21 @@ export function TimeLabels({ items, dark }: TimeLabelsProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
 
   // 查找消息元素并保证可定位（原 _doRenderTimeLabels 的 target 处理）。
+  // 消息行增删只随快照 items 变化（宿主 ChatView 与本组件订阅同一快照，
+  // 同一次 React 提交内先完成 DOM 更新，effect 里必能查到新行），无需再
+  // 观察消息列 DOM；个别行未就绪时补一帧 rAF 重查兜底。
   useEffect(() => {
     let raf = 0
-    const resolve = (): void => {
+    const resolve = (): boolean => {
       const next: LabelTarget[] = []
+      let missing = false
       for (const item of items) {
         if (item.time === 0) continue
         const el = findMessageElement(item.key)
-        if (el === null) continue
+        if (el === null) {
+          missing = true
+          continue
+        }
         if (getComputedStyle(el).position === 'static') {
           el.style.position = 'relative'
         }
@@ -48,21 +55,15 @@ export function TimeLabels({ items, dark }: TimeLabelsProps) {
         }
         return next
       })
+      return missing
     }
-    const schedule = (): void => {
-      if (raf !== 0) return
+    if (resolve()) {
       raf = requestAnimationFrame(() => {
         raf = 0
         resolve()
       })
     }
-    schedule()
-    // 流式渲染期间消息节点增删：观察消息列 DOM 变化。
-    const column = document.querySelector('[data-chat-flow]')
-    const observer = new MutationObserver(schedule)
-    if (column !== null) observer.observe(column, { childList: true, subtree: true })
     return () => {
-      observer.disconnect()
       if (raf !== 0) cancelAnimationFrame(raf)
     }
   }, [items])

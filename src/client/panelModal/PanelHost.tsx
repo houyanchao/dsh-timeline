@@ -296,7 +296,7 @@ function Toggle({ checked, onChange }: ToggleProps) {
 
 interface SettingItemProps {
   readonly label: React.ReactNode
-  readonly hint: string
+  readonly hint: React.ReactNode
   readonly control: React.ReactNode
 }
 
@@ -672,7 +672,7 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
                 onChange={(enabled) => {
                   settingsStore.set({ aiCompleteToastEnabled: enabled })
                   // 开启时预览效果（原 showAICompleteToastPreview）。
-                  if (enabled) showAiCompleteToast(t('timeline.aiCompleteToast').replace('{name}', 'AI'))
+                  if (enabled) showAiCompleteToast(t('timeline.aiCompleteToast'))
                 }}
               />
             </div>
@@ -785,7 +785,6 @@ function StarredTab({ t, currentSessionId, openSession, onClose }: StarredTabPro
           searchEmptyClassName={css.starredEmpty}
           toastColors={STARRED_TAB_TOAST_COLOR}
           localExpansion
-          showPlatformIcon
           t={t}
         />
       </div>
@@ -1142,47 +1141,48 @@ function SmartInputTab({ t }: { readonly t: T }) {
         />
       </div>
       <div className={css.divider} />
-      <div className={css.platformList}>
-        <div className={css.platformListTitle}>{t('panel.smartEnterTitle')}</div>
-        <div className={css.platformListHint}>
-          {hintBefore}
-          {modeIndex >= 0
-            ? (
-              <span
-                className={css.smartEnterModeTrigger}
-                onClick={(e) => {
-                  dropdown.show({
-                    trigger: e.currentTarget,
-                    items: [
-                      { label: modeLabel('doubleEnter', t), onClick: () => { setMode('doubleEnter') } },
-                      { label: modeLabel('ctrlEnter', t), onClick: () => { setMode('ctrlEnter') } },
-                      { label: modeLabel('shiftEnter', t), onClick: () => { setMode('shiftEnter') } },
-                    ],
-                    width: 180,
-                    position: 'bottom-left',
-                  })
-                }}
-              >
-                {modeLabel(settings.smartEnterMode, t)}
-                <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
-                  <path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
-            )
-            : null}
-          {hintAfter}
-        </div>
-        <div className={css.platformListContainer}>
-          <div className={css.platformItem}>
-            <div className={css.platformInfoLeft}>
-              <span className={css.platformName}>DeepSeek</span>
-            </div>
+      {/* 换行与发送消息：与追问功能同款 setting-item 卡片行（标题/提示在卡内、
+          开关同行），提示文案中的 {mode} 仍替换为内联 Dropdown trigger。 */}
+      <div className={css.settingSection}>
+        <SettingItem
+          label={t('panel.smartEnterTitle')}
+          hint={(
+            <>
+              {hintBefore}
+              {modeIndex >= 0
+                ? (
+                  <span
+                    className={css.smartEnterModeTrigger}
+                    onClick={(e) => {
+                      dropdown.show({
+                        trigger: e.currentTarget,
+                        items: [
+                          { label: modeLabel('doubleEnter', t), onClick: () => { setMode('doubleEnter') } },
+                          { label: modeLabel('ctrlEnter', t), onClick: () => { setMode('ctrlEnter') } },
+                          { label: modeLabel('shiftEnter', t), onClick: () => { setMode('shiftEnter') } },
+                        ],
+                        width: 180,
+                        position: 'bottom-left',
+                      })
+                    }}
+                  >
+                    {modeLabel(settings.smartEnterMode, t)}
+                    <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
+                      <path d="M3 4.5L6 7.5L9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                )
+                : null}
+              {hintAfter}
+            </>
+          )}
+          control={(
             <Toggle
               checked={settings.smartEnterEnabled}
               onChange={(enabled) => { settingsStore.set({ smartEnterEnabled: enabled }) }}
             />
-          </div>
-        </div>
+          )}
+        />
       </div>
     </div>
   )
@@ -1257,24 +1257,21 @@ function FormulaTab({ t }: { readonly t: T }) {
 
 function ExportTab({ t }: { readonly t: T }) {
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
+  // 与追问功能同款 setting-item 卡片行（标题/提示在卡内、开关同行），
+  // 原「DeepSeek 平台行 + logo」随平台列表布局一并去除。
   return (
     <div className={css.exportRoot}>
-      <div className={css.platformList}>
-        <div className={css.platformListTitle}>{t('panel.exportTitle')}</div>
-        <div className={css.platformListHint}>{t('panel.exportHint')}</div>
-        <div className={css.platformListContainer}>
-          <div className={css.platformItem}>
-            <div className={css.platformInfoLeft}>
-              {/* 原导出平台行带 22×22 平台 logo。 */}
-              <img className={css.exportPlatformLogo} src={DEEPSEEK_LOGO_DATA_URL} alt="DeepSeek" />
-              <span className={css.platformName}>DeepSeek</span>
-            </div>
+      <div className={css.settingSection}>
+        <SettingItem
+          label={t('panel.exportTitle')}
+          hint={t('panel.exportHint')}
+          control={(
             <Toggle
               checked={settings.conversationExportEnabled}
               onChange={(enabled) => { settingsStore.set({ conversationExportEnabled: enabled }) }}
             />
-          </div>
-        </div>
+          )}
+        />
       </div>
     </div>
   )

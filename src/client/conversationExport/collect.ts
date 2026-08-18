@@ -1,7 +1,8 @@
 /**
  * 对话导出：数据采集。原扩展的 adapters 通过 DOM 爬取 + 滚动加载采集对话；
- * DSH 下完整对话已在会话快照（chat.order/nodes）中，等价于原 STATIC 策略：
- * 直接读取节点配对成轮次，图片经 readAttachment 解析成 blob URL。
+ * DSH 下会话窗口按页装载，调用方先经 loadFullHistory 向前翻页拉全历史，
+ * 再把最新快照的 chat.order/nodes 交给这里配对成轮次（等价于原 SCROLL 策略），
+ * 图片经 readAttachment 解析成 blob URL。
  */
 import type { ChatNodeStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ExportImage, ExportTurn } from './constants.ts'
@@ -133,7 +134,9 @@ export async function collectAllTurns(
       continue
     }
 
-    if (node.kind === 'assistant' && current !== null) {
+    // 助手内容挂在 'assistant-step' 节点（AssistantChatData.blocks），
+    // 'assistant' 只是 legacy 投影（finalNode）里的 kind，Chat 视图节点没有它。
+    if (node.kind === 'assistant-step' && current !== null) {
       const data = node.data as AssistantLikeData
       for (const block of data.blocks ?? []) {
         if (block.kind === 'text' && typeof block.text === 'string' && block.text.trim() !== '') {
@@ -185,7 +188,7 @@ export async function collectAllTurns(
     // 过滤过小的装饰图（原 CE_MIN_IMAGE_SIZE：任一边 <48 且尺寸已知时跳过）。
     const userImages = m.userImages.filter(img => !isDecorativeImage(img))
     const assistantImages = m.assistantImages.filter(img => !isDecorativeImage(img))
-    const markdown = m.assistantParts.join('\n\n').trim()
+    const markdown = normalizeMathDelimiters(m.assistantParts.join('\n\n')).trim()
     const text = markdownToPlainText(markdown)
     // 全空轮丢弃（原 extractTurn：文本与图片四者全空时返回 null），序号保持连续。
     if (m.userText === '' && userImages.length === 0 && text === '' && assistantImages.length === 0) continue
@@ -208,6 +211,25 @@ function isDecorativeImage(img: ExportImage): boolean {
 }
 
 /**
+ * 公式定界符归一化：\[...\] 与 $$...$$ 统一为独占行的 $$ 围栏，\(...\) → $...$。
+ * DeepSeek 回复与 dsh 渲染层同时支持 $ 系与 TeX 系定界符，而下游导出器
+ * （PNG 的块解析 / PDF / Markdown）只识别 $ 系；代码围栏内不做替换。
+ */
+export function normalizeMathDelimiters(markdown: string): string {
+  // 以代码围栏为界切分（捕获组保留围栏段，奇数下标即围栏），仅在非代码段替换。
+  const segments = markdown.split(/(```[^\n]*\n[\s\S]*?(?:\n```|$))/g)
+  return segments.map((segment, index) => {
+    if (index % 2 === 1) return segment
+    return segment
+      // 块级公式：\[...\] 与单行/跨行 $$...$$ 统一为独占行围栏（幂等）
+      .replace(/\\\[([\s\S]*?)\\\]/g, (_, tex: string) => `\n\n$$\n${tex.trim()}\n$$\n\n`)
+      .replace(/\$\$([\s\S]+?)\$\$/g, (_, tex: string) => `\n\n$$\n${tex.trim()}\n$$\n\n`)
+      // 行内公式：\(...\) → $...$
+      .replace(/\\\((.*?)\\\)/g, (_, tex: string) => `$${tex.trim()}$`)
+  }).join('')
+}
+
+/**
  * Markdown → 纯文本（原 adapters 由 DOM innerText 提供；此处从 markdown 剥离标记，
  * 覆盖：代码围栏（含未闭合）、块级/行内公式定界符、表格（分隔行丢弃、单元格转制表符）、
  * 分隔线、标题、图片/链接、行内标记、引用、列表符号）。
@@ -216,8 +238,9 @@ export function markdownToPlainText(markdown: string): string {
   const withoutBlocks = markdown
     // 代码围栏（未闭合的也剥离，保留代码内容）
     .replace(/```[^\n]*\n([\s\S]*?)(?:```|$)/g, '$1')
-    // 公式定界符：$$...$$、\[...\]、\(...\)，保留内部内容
+    // 公式定界符：$$...$$、$...$、\[...\]、\(...\)，保留内部内容
     .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
+    .replace(/\$([^$\n]+?)\$/g, '$1')
     .replace(/\\\[([\s\S]*?)\\\]/g, '$1')
     .replace(/\\\((.*?)\\\)/g, '$1')
 

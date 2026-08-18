@@ -7,6 +7,9 @@
 /* ==== 主题变量（原 .ait-folder-theme-adaptive） ==== */
 .root {
   --ss-title-color: #1f1f1f;
+  /* 侧栏内联区块的弱化标题/新建按钮：随主题取灰阶。 */
+  --ss-section-title-color: #5f6368;
+  --ss-header-action-color: #6b7280;
   --ss-icon-color: #444746;
   --ss-hover-bg: rgba(68, 71, 70, 0.08);
   --ss-empty-color: #70757a;
@@ -49,6 +52,8 @@
 
 .root[data-theme='dark'] {
   --ss-title-color: #e8eaed;
+  --ss-section-title-color: #adb2bb;
+  --ss-header-action-color: rgb(207, 211, 214);
   --ss-icon-color: #9aa0a6;
   --ss-hover-bg: rgba(232, 234, 237, 0.08);
   --ss-empty-color: #9aa0a6;
@@ -154,7 +159,7 @@
   gap: 2px;
   user-select: none;
   border-radius: 6px;
-  padding: 2px 4px 2px 2px;
+  padding: 2px 4px 2px 0;
   transition: background-color 0.15s;
   cursor: pointer;
 }
@@ -165,8 +170,8 @@
 
 .title {
   font-size: 14px;
-  font-weight: 600;
-  color: var(--ss-title-color);
+  font-weight: 400;
+  color: var(--ss-section-title-color);
   user-select: none;
 }
 
@@ -218,6 +223,10 @@
 
 .headerBtn:hover {
   background-color: var(--ss-hover-bg);
+}
+
+.headerBtn.headerActionBtn {
+  color: var(--ss-header-action-color);
 }
 
 .helpBtn {
@@ -683,24 +692,50 @@
   color: #e5e7eb;
 }
 
-/* ==== 侧栏脚触发按钮 ==== */
-.footerBtn {
-  display: flex;
+/* 工作区会话行收藏星（原 .ait-conv-starred-icon） */
+.sessionStarIcon {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--ss-icon-color, #444746);
-  padding: 0;
-  transition: background-color 0.2s;
+  flex-shrink: 0;
+  margin-right: 4px;
+  vertical-align: middle;
+  line-height: 1;
+  position: relative;
+  top: -1px;
 }
 
-.footerBtn:hover {
-  background-color: var(--ss-hover-bg, rgba(68, 71, 70, 0.08));
+/* ==== 侧栏「工作区」上方的内联文件夹列表 ==== */
+.sidebarSection {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+  padding-right: var(--dsh-sidebar-inline-padding, 12px);
+  box-sizing: border-box;
+}
+
+.sidebarSection .header {
+  padding: 4px 4px 4px 0;
+  margin-bottom: 0;
+}
+
+.sidebarSection .list {
+  flex: none;
+  overflow: visible;
+  padding-right: 2px;
+}
+
+.sidebarSection .empty {
+  padding: 8px 12px 12px;
+  text-align: left;
+}
+
+/* 直挂 body 的叠层：与收藏弹窗同级封顶，后插入故压在上面。 */
+.femPortal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
 }
 
 /* ==== 文件夹编辑弹窗（原 folder-edit-modal） ==== */
@@ -711,7 +746,9 @@
   width: 100%;
   height: 100%;
   background-color: rgba(0, 0, 0, 0.5);
-  z-index: 2147483648;
+  /* 与收藏弹窗同级封顶；后挂 body，靠 DOM 顺序压在上面。
+     不用 2147483648：部分引擎按 int32 回绕成负数。 */
+  z-index: 2147483647;
   display: flex;
   align-items: center;
   justify-content: center;

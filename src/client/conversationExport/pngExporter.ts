@@ -4,9 +4,11 @@
  * - 头部主题色区：标题、来源、导出时间
  * - 正文：逐轮渲染用户/助手内容（段落、标题、列表、引用、代码块、图片）
  * - 图片：尝试内嵌，失败显示占位提示
- * - 公式：页面存在 MathJax（tex2svg）时渲染为 SVG 图片，否则回退 LaTeX 文本
+ * - 公式：temml 转 MathML 后经 SVG foreignObject 光栅化为图片，
+ *   渲染或绘制失败（如画布被污染）时回退 LaTeX 文本
  * - 超长对话：超过画布上限时截断并提示
  */
+import temml from 'temml'
 import {
   CE_MAX_CANVAS_HEIGHT, ceFormatChatTime, ceFormatLocalTime, ceGetTheme,
   type CeTexts, type ExportJob, type ExportImage, type ExportTheme,
@@ -56,17 +58,6 @@ type InlineItem =
   | { type: 'text'; text: string; w: number }
   | { type: 'formula'; entry: FormulaEntry | null; w: number; h: number; fallback: string }
 
-/** window.MathJax 的最小读取形态。 */
-interface MathJaxLike {
-  startup?: { promise?: Promise<unknown> }
-  tex2svg?: (latex: string, options: { display: boolean }) => Element
-}
-
-function getMathJax(): MathJaxLike | null {
-  const mj = (window as { MathJax?: MathJaxLike }).MathJax
-  return typeof mj === 'object' ? mj : null
-}
-
 export class CEPngExporter {
   private readonly PAGE_WIDTH = 820
   private readonly PADDING_X = 40
@@ -99,7 +90,6 @@ export class CEPngExporter {
   private texts!: CeTexts
   private formulaCapable = false
   private formulaImages = new Map<string, FormulaEntry | null>()
-  private mathjaxReady: Promise<boolean> | null = null
 
   /** 导出 PNG（原 export）。 */
   async export(job: ExportJob, themeId: string, texts: CeTexts): Promise<Blob> {
@@ -206,9 +196,6 @@ export class CEPngExporter {
     const titleLines = this.wrapText(ctx, job.meta.title, innerWidth)
 
     const metaLines: string[] = []
-    if (job.options.showUrl && job.meta.url !== '') {
-      metaLines.push(`${this.texts.sourceLabel}: ${job.meta.url}`)
-    }
     if (job.options.showTime) {
       metaLines.push(`${this.texts.timeLabel}: ${ceFormatLocalTime(job.meta.exportTime)}`)
     }
@@ -915,7 +902,7 @@ export class CEPngExporter {
     })
   }
 
-  // ==================== 公式渲染（LaTeX → SVG 图片） ====================
+  // ==================== 公式渲染（LaTeX → MathML → SVG 图片） ====================
 
   /** 探测公式图片渲染是否可用且不污染 canvas（原 _probeFormulaRendering）。 */
   private async probeFormulaRendering(): Promise<boolean> {
@@ -980,60 +967,52 @@ export class CEPngExporter {
     return result
   }
 
-  /** MathJax 就绪检测（原 _ensureMathJax；DSH 下仅用页面已存在的 MathJax）。 */
-  async ensureMathJax(): Promise<boolean> {
-    this.mathjaxReady ??= (async () => {
-      try {
-        const mj = getMathJax()
-        if (mj === null) return false
-        if (mj.startup?.promise !== undefined) {
-          await mj.startup.promise
-        }
-        return typeof mj.tex2svg === 'function'
-      } catch {
-        return false
-      }
-    })()
-    const ready = await this.mathjaxReady
-    if (!ready) this.mathjaxReady = null
-    return ready
-  }
-
-  /** LaTeX → 自包含 SVG → 图片（原 _renderLatexToImage）。 */
+  /**
+   * LaTeX → 图片（原 _renderLatexToImage，MathJax 改 temml）。
+   * 原版依赖页面全局 MathJax（tex2svg 出纯矢量 SVG）；dsh 页面没有 MathJax，
+   * 改用插件打包的 temml 转 MathML，先在隐藏 DOM 中按目标字号实测像素尺寸，
+   * 再包进 SVG foreignObject 作为图片加载（浏览器原生渲染 MathML）。
+   */
   private async renderLatexToImage(latex: string, displayMode: boolean): Promise<FormulaEntry | null> {
     if (latex === '') return null
 
-    const ready = await this.ensureMathJax()
-    if (!ready) return null
-
     const fontSize = displayMode ? 22 : 17
-    const color = this.colors.text
 
-    let svg: SVGElement | null
+    let mathml: string
     try {
-      const mj = getMathJax()
-      if (mj?.tex2svg === undefined) return null
-      const node = mj.tex2svg(latex, { display: displayMode })
-      svg = node.querySelector('svg')
+      mathml = temml.renderToString(latex, {
+        displayMode,
+        annotate: false,
+        throwOnError: false,
+        trust: false,
+      })
     } catch {
       return null
     }
-    if (svg === null) return null
 
-    // 在真实 DOM 中按目标字号测量像素尺寸（MathJax SVG 默认使用 ex 单位）
+    // 在真实 DOM 中按目标字号测量像素尺寸
     const probe = document.createElement('div')
-    probe.style.cssText = `position:absolute;left:-99999px;top:0;visibility:hidden;font-size:${String(fontSize)}px;`
-    probe.appendChild(svg)
+    probe.style.cssText = `position:absolute;left:-99999px;top:0;visibility:hidden;font-size:${String(fontSize)}px;line-height:normal;color:${this.colors.text};`
+    probe.innerHTML = mathml
     document.body.appendChild(probe)
-    const rect = svg.getBoundingClientRect()
+    const mathEl = probe.querySelector('math')
+    if (mathEl === null) {
+      probe.remove()
+      return null
+    }
+    const rect = mathEl.getBoundingClientRect()
     const width = Math.max(1, Math.ceil(rect.width))
     const height = Math.max(1, Math.ceil(rect.height))
-
-    svg.setAttribute('width', String(width))
-    svg.setAttribute('height', String(height))
-    svg.style.color = color // MathJax 字形使用 currentColor
-    const svgString = new XMLSerializer().serializeToString(svg)
+    // XMLSerializer 保证 foreignObject 内容是合法 XML（HTML 解析器已给 <math> 挂上命名空间）
+    const mathXml = new XMLSerializer().serializeToString(mathEl)
     probe.remove()
+
+    const svgString
+      = `<svg xmlns="http://www.w3.org/2000/svg" width="${String(width)}" height="${String(height)}">`
+        + '<foreignObject width="100%" height="100%">'
+        + `<div xmlns="http://www.w3.org/1999/xhtml" style="font-size:${String(fontSize)}px;line-height:normal;color:${this.colors.text};">`
+        + mathXml
+        + '</div></foreignObject></svg>'
 
     const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`
     return await new Promise((resolve) => {

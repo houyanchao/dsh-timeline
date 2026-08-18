@@ -24,7 +24,19 @@ import { CEPngExporter } from './pngExporter.ts'
 import { CEPdfExporter } from './pdfExporter.ts'
 import css from './export.module.css'
 
-/** 完整 props：会话头部动作槽位运行时 + 词典 + 注入的图片解析器。 */
+/** loadFullHistory 的进度/取消回调。 */
+export interface LoadFullHistoryOptions {
+  readonly onProgress?: (count: number) => void
+  readonly shouldCancel?: () => boolean
+}
+
+/** loadFullHistory 拉全历史后返回的最新快照切片。 */
+export interface FullHistorySlice {
+  readonly order: readonly string[]
+  readonly nodes: Parameters<typeof collectAllTurns>[1]
+}
+
+/** 完整 props：会话头部动作槽位运行时 + 词典 + 注入的图片解析器与历史拉取。 */
 export type ExportActionProps =
   PropsRuntime<'conversation.session.header.actions'>
   & PropsLocale<typeof NS>
@@ -37,6 +49,8 @@ export type ExportActionProps =
       readonly name?: string
       readonly data: Uint8Array
     } | null>
+    /** 向前翻页拉全会话历史（窗口默认只含最近一页），返回最新 chat.order/nodes。 */
+    readonly loadFullHistory: (sessionId: string, options?: LoadFullHistoryOptions) => Promise<FullHistorySlice | null>
   }
 
 /** t → CeTexts（原 CE_TEXT 的词典化）。 */
@@ -50,7 +64,6 @@ function buildTexts(t: ExportActionProps['t']): CeTexts {
     sectionList: t('export.sectionList'),
     rangeAll: t('export.rangeAll'),
     rangeSelect: t('export.rangeSelect'),
-    headerShowUrl: t('export.headerShowUrl'),
     headerShowTime: t('export.headerShowTime'),
     headerShowConversationTime: t('export.headerShowConversationTime'),
     askTimeLabel: t('export.askTimeLabel'),
@@ -70,7 +83,6 @@ function buildTexts(t: ExportActionProps['t']): CeTexts {
     failed: t('export.failed'),
     noConversation: t('export.noConversation'),
     needSelect: t('export.needSelect'),
-    sourceLabel: t('export.sourceLabel'),
     timeLabel: t('export.timeLabel'),
     titleLabel: t('export.titleLabel'),
     orderLabel: t('export.orderLabel'),
@@ -94,7 +106,7 @@ function preview(text: string): string {
  * @param props - 槽位运行时 + 词典 + 图片解析器。
  * @returns 导出按钮；设置关闭时不渲染。
  */
-export function ExportAction({ sessionId, useSession, useSessions, resolveAttachment, t }: ExportActionProps) {
+export function ExportAction({ sessionId, useSession, useSessions, resolveAttachment, loadFullHistory, t }: ExportActionProps) {
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
   const chatOrder = useSession(s => s.chat.order)
   const nodes = useSession(s => s.chat.nodes)
@@ -154,6 +166,7 @@ export function ExportAction({ sessionId, useSession, useSessions, resolveAttach
             chatOrder={chatOrder}
             nodes={nodes}
             resolveAttachment={(attachmentId) => resolveAttachment(sessionId, attachmentId)}
+            loadFullHistory={options => loadFullHistory(sessionId, options)}
             onClose={() => { setOpen(false) }}
           />
         )
@@ -171,11 +184,13 @@ interface ExportModalProps {
   readonly chatOrder: readonly string[]
   readonly nodes: Parameters<typeof collectAllTurns>[1]
   readonly resolveAttachment: AttachmentResolver
+  /** 拉全历史（失败返回 null 时回退用打开弹窗时的窗口快照）。 */
+  readonly loadFullHistory: (options?: LoadFullHistoryOptions) => Promise<FullHistorySlice | null>
   readonly onClose: () => void
 }
 
 /** 导出弹窗（原 CEExportModal 的 React 化）。 */
-function ExportModal({ texts, themeLabels, defaultThemeId, title, chatOrder, nodes, resolveAttachment, onClose }: ExportModalProps) {
+function ExportModal({ texts, themeLabels, defaultThemeId, title, chatOrder, nodes, resolveAttachment, loadFullHistory, onClose }: ExportModalProps) {
   const [dark, setDark] = useState(() => detectDarkTheme())
   useEffect(() => observeTheme(() => { setDark(detectDarkTheme()) }), [])
 
@@ -190,7 +205,6 @@ function ExportModal({ texts, themeLabels, defaultThemeId, title, chatOrder, nod
   const [themeId, setThemeId] = useState(
     CE_THEMES.some(th => th.id === defaultThemeId) ? defaultThemeId : CE_DEFAULT_THEME,
   )
-  const [showUrl, setShowUrl] = useState(true)
   const [showTime, setShowTime] = useState(true)
   const [showConversationTime, setShowConversationTime] = useState(true)
   const [checked, setChecked] = useState<ReadonlySet<number>>(new Set())
@@ -226,16 +240,21 @@ function ExportModal({ texts, themeLabels, defaultThemeId, title, chatOrder, nod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 加载对话（原 _loadConversation）
+  // 加载对话（原 _loadConversation：先分页拉全历史，再从最新快照采集）
   useEffect(() => {
     closedRef.current = false
     void (async () => {
       let collected: ExportTurn[] = []
       try {
-        collected = await collectAllTurns(chatOrder, nodes, resolveAttachment, {
-          onProgress: (count) => { setProgress(count) },
-          shouldCancel: () => cancelledRef.current || closedRef.current,
-        })
+        const onProgress = (count: number): void => { setProgress(count) }
+        const shouldCancel = (): boolean => cancelledRef.current || closedRef.current
+        const full = await loadFullHistory({ onProgress, shouldCancel })
+        collected = await collectAllTurns(
+          full?.order ?? chatOrder,
+          full?.nodes ?? nodes,
+          resolveAttachment,
+          { onProgress, shouldCancel },
+        )
       } catch { /* 加载失败按空处理 */ }
 
       if (closedRef.current) return
@@ -294,10 +313,9 @@ function ExportModal({ texts, themeLabels, defaultThemeId, title, chatOrder, nod
           title,
           platformId: 'deepseek',
           platformName: 'DeepSeek',
-          url: location.href,
           exportTime: new Date(),
         },
-        options: { showUrl, showTime, showConversationTime, rangeId, formatId },
+        options: { showTime, showConversationTime, rangeId, formatId },
         turns: selectedTurns,
       }
 
@@ -413,13 +431,9 @@ function ExportModal({ texts, themeLabels, defaultThemeId, title, chatOrder, nod
                   </div>
                 </div>
 
-                {/* 更多配置（对话 URL / 导出时间 / 对话时间） */}
+                {/* 更多配置（导出时间 / 对话时间） */}
                 <div className={css.section}>
                   <div className={css.checkGroup}>
-                    <label className={css.check}>
-                      <input type="checkbox" checked={showUrl} onChange={(e) => { setShowUrl(e.target.checked) }} />
-                      <span>{texts.headerShowUrl}</span>
-                    </label>
                     <label className={css.check}>
                       <input type="checkbox" checked={showTime} onChange={(e) => { setShowTime(e.target.checked) }} />
                       <span>{texts.headerShowTime}</span>

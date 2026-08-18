@@ -4,9 +4,10 @@
  * - 队列管理：最多同时 3 个，居中 toast 自上而下堆叠（起始 60px、间距 10px）；
  * - 相对定位：传 target 时贴目标元素 top/bottom/left/right + gap，视口边界 8px 修正；
  * - className/iconType/useClassStyles 支持 AI 完成提醒的胶囊样式。
- * 命令式 API（toast.success 等）+ React 宿主（ToastHost，挂 shell.overlay）。
+ * 命令式 API（toast.success 等）+ React 宿主（ToastHost，portal 到 body）。
  */
 import { useLayoutEffect, useRef, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { Bus } from './bus.ts'
 import css from './ui.module.css'
 
@@ -180,6 +181,7 @@ function CheckIcon() {
 
 /**
  * Toast 宿主：渲染队列并按原版算法定位。
+ * portal 到 body，且仅在有 toast 时挂载，保证插在收藏弹窗之后、不被挡住。
  * @param props - dark 为宿主主题（决定 light/dark 配色取值）。
  * @returns toast 列表。
  */
@@ -187,6 +189,7 @@ export function ToastHost({ dark }: { readonly dark: boolean }) {
   const list = useSyncExternalStore(bus.subscribe, () => bus.get())
   const refs = useRef(new Map<number, HTMLDivElement>())
   const shown = useRef(new Set<number>())
+  const hostRef = useRef<HTMLDivElement>(null)
 
   // 位置计算（移植 _updatePositions：居中堆叠 + 相对目标定位 + 边界修正）。
   // 退场中的 toast 不参与计算、位置冻结原地淡出（原版队列只含活动实例）。
@@ -257,10 +260,18 @@ export function ToastHost({ dark }: { readonly dark: boolean }) {
     for (const id of [...shown.current]) {
       if (!list.some(t => t.id === id)) shown.current.delete(id)
     }
+
+    // 每次有 toast 时挪到 body 末尾，压过已挂载的收藏/文件夹弹窗。
+    const host = hostRef.current
+    if (host !== null && host.parentNode === document.body) {
+      document.body.appendChild(host)
+    }
   }, [list])
 
-  return (
-    <>
+  if (list.length === 0) return null
+
+  return createPortal(
+    <div ref={hostRef} className={css.host} data-theme={dark ? 'dark' : 'light'}>
       {list.map((t) => {
         const useClass = t.config.useClassStyles === true
         const colors = t.config.color === false
@@ -299,6 +310,7 @@ export function ToastHost({ dark }: { readonly dark: boolean }) {
           </div>
         )
       })}
-    </>
+    </div>,
+    document.body,
   )
 }

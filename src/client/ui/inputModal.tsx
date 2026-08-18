@@ -4,6 +4,7 @@
  * ESC/遮罩取消，自动聚焦 + 光标定位末尾，Promise<string|null> 返回。
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { Bus } from './bus.ts'
 import { toast } from './toast.tsx'
 import css from './ui.module.css'
@@ -66,16 +67,18 @@ export const inputModal = {
 
 /**
  * InputModal 宿主。
- * @param props - 词典默认文案。
+ * portal 到 body：收藏弹窗直挂 body 时，挂在 shell.overlay 里会被挡住。
+ * @param props - 词典默认文案 + 宿主主题。
  * @returns 遮罩 + 对话框。
  */
-export function InputModalHost({ defaults }: {
+export function InputModalHost({ defaults, dark }: {
   readonly defaults: {
     readonly placeholder: string
     readonly requiredMessage: string
     readonly confirmText: string
     readonly cancelText: string
   }
+  readonly dark: boolean
 }) {
   const state = useSyncExternalStore(bus.subscribe, () => bus.get())
   const inputRef = useRef<HTMLInputElement>(null)
@@ -125,7 +128,8 @@ export function InputModalHost({ defaults }: {
     close(value !== '' ? value : null)
   }
 
-  return (
+  return createPortal(
+    <div className={css.host} data-theme={dark ? 'dark' : 'light'}>
     <div
       className={!state.closing && entered ? `${css.inputModalOverlay} ${css.inputModalVisible}` : css.inputModalOverlay}
       onClick={(e) => { if (e.target === e.currentTarget) close(null) }}
@@ -158,5 +162,7 @@ export function InputModalHost({ defaults }: {
         </div>
       </div>
     </div>
+    </div>,
+    document.body,
   )
 }

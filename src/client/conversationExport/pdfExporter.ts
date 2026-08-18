@@ -2,25 +2,17 @@
  * 对话导出：PDF 导出器（移植原 conversationExport/pdf-exporter.js）。
  * 文字排版方案：把对话渲染成结构化 HTML 塞进隐藏 iframe，调用浏览器打印
  * （用户在弹出对话框里选择「另存为 PDF」）。文字可选中/可搜索、自动分页；
- * 公式在页面存在 MathJax 时渲染为 SVG，否则回退 <code>LaTeX</code>。
+ * 公式经 temml 转 MathML（浏览器原生渲染，打印无需额外字体/样式），
+ * 转换失败回退 <code>LaTeX</code>。原版依赖页面全局 MathJax；dsh 用打包的
+ * KaTeX 渲染正文，window.MathJax 不存在，故改走插件自带的 temml。
  * markdown 块解析复用 CEPngExporter.parseMarkdownBlocks（与 PNG 一致）。
  */
+import temml from 'temml'
 import { ceFormatChatTime, ceFormatLocalTime, ceGetTheme, type CeTexts, type ExportImage, type ExportJob, type ExportTurn } from './constants.ts'
 import type { CEPngExporter } from './pngExporter.ts'
 
-interface MathJaxLike {
-  startup?: { promise?: Promise<unknown> }
-  tex2svg?: (latex: string, options: { display: boolean }) => Element
-}
-
-function getMathJax(): MathJaxLike | null {
-  const mj = (window as { MathJax?: MathJaxLike }).MathJax
-  return typeof mj === 'object' ? mj : null
-}
-
 export class CEPdfExporter {
   private parser: CEPngExporter | null = null
-  private mjReady = false
   private texts!: CeTexts
 
   /**
@@ -33,7 +25,6 @@ export class CEPdfExporter {
   async export(job: ExportJob, themeId: string, texts: CeTexts, markdownParser?: CEPngExporter): Promise<void> {
     this.texts = texts
     this.parser = markdownParser ?? null
-    this.mjReady = this.containsFormula(job) ? await this.ensureMathJax() : false
     const html = this.buildHtml(job, themeId)
     await this.printHtml(html)
   }
@@ -48,9 +39,6 @@ export class CEPdfExporter {
     const title = meta.title !== '' ? meta.title : this.texts.defaultTitle
 
     const metaLines: string[] = []
-    if (options.showUrl && meta.url !== '') {
-      metaLines.push(`${this.texts.sourceLabel}: ${this.escapeHtml(meta.url)}`)
-    }
     if (options.showTime) {
       metaLines.push(`${this.texts.timeLabel}: ${this.escapeHtml(ceFormatLocalTime(meta.exportTime))}`)
     }
@@ -104,7 +92,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .ce-img { max-width: 100%; height: auto; border-radius: 6px; margin: 8px 0; break-inside: avoid; }
 .ce-img-missing { color: #9ca3af; font-size: 13px; background: #f3f4f6; border-radius: 8px; padding: 10px 12px; }
 .ce-empty { color: #9ca3af; }
-svg { vertical-align: middle; }
+math { vertical-align: middle; }
 a { color: #2563eb; text-decoration: none; }
 `
   }
@@ -185,8 +173,8 @@ a { color: #2563eb; text-decoration: none; }
           html += `<blockquote>${this.inlineToHtml(b.text)}</blockquote>`
           break
         case 'formula': {
-          const svg = this.latexToSvg(b.latex, true)
-          html += `<div class="ce-formula">${svg ?? `<code>${this.escapeHtml(b.latex)}</code>`}</div>`
+          const mathml = this.latexToMathML(b.latex, true)
+          html += `<div class="ce-formula">${mathml ?? `<code>${this.escapeHtml(b.latex)}</code>`}</div>`
           break
         }
         default:
@@ -209,8 +197,8 @@ a { color: #2563eb; text-decoration: none; }
 
     // 行内公式 $...$
     s = s.replace(/\$([^$\n]+?)\$/g, (_, tex: string) => {
-      const svg = this.latexToSvg(tex, false)
-      return put(svg ?? `<code>${this.escapeHtml(tex)}</code>`)
+      const mathml = this.latexToMathML(tex, false)
+      return put(mathml ?? `<code>${this.escapeHtml(tex)}</code>`)
     })
     // 行内代码 `...`
     s = s.replace(/`([^`]+?)`/g, (_, code: string) => put(`<code>${this.escapeHtml(code)}</code>`))
@@ -235,36 +223,16 @@ a { color: #2563eb; text-decoration: none; }
 
   // ==================== 公式 ====================
 
-  private containsFormula(job: ExportJob): boolean {
-    return job.turns.some((turn) => {
-      const markdown = turn.assistant.markdown
-      if (markdown === '') return false
-      return /\\\(|\\\[|\$\$/.test(markdown)
-        || /(^|[^\\$])\$[^$\n]+\$(?!\$)/m.test(markdown)
-    })
-  }
-
-  private async ensureMathJax(): Promise<boolean> {
+  /** LaTeX → MathML（temml；同公式复制功能的转换引擎），失败返回 null 由调用方回退。 */
+  private latexToMathML(latex: string, display: boolean): string | null {
+    if (latex === '') return null
     try {
-      const mj = getMathJax()
-      if (mj === null) return false
-      if (mj.startup?.promise !== undefined) await mj.startup.promise
-      return typeof mj.tex2svg === 'function'
-    } catch {
-      return false
-    }
-  }
-
-  private latexToSvg(latex: string, display: boolean): string | null {
-    if (!this.mjReady || latex === '') return null
-    try {
-      const mj = getMathJax()
-      if (mj?.tex2svg === undefined) return null
-      const node = mj.tex2svg(latex, { display })
-      const svg = node.querySelector('svg')
-      if (svg === null) return null
-      svg.style.color = '#1f2937'
-      return svg.outerHTML
+      return temml.renderToString(latex, {
+        displayMode: display,
+        annotate: false,
+        throwOnError: false,
+        trust: false,
+      })
     } catch {
       return null
     }

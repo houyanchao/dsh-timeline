@@ -7,7 +7,9 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { en, NS, zh, type TimelineKey } from './locales.ts'
+import { bindTheme } from './shared/theme.ts'
 import { createTimelineStore } from './timeline/store.ts'
 import { TimelineAction } from './timeline/TimelineAction.tsx'
 import { StarredPanel } from './starred/StarredPanel.tsx'
@@ -26,14 +28,15 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export type { TimelineActionProps } from './timeline/TimelineAction.tsx'
 export { createTimelineStore } from './timeline/store.ts'
 
-/** 词典注册、槽位贡献与会话导航所需的服务。 */
-export const inject = ['slots', 'locale', 'sessions']
+/** 词典注册、槽位贡献、会话导航与主题服务。 */
+export const inject = ['slots', 'locale', 'sessions', 'theme']
 
 /**
  * 客户端插件体：注册词典与会话头部时间轴入口。
  * @param ctx - 客户端根上下文。
  */
 export function apply(ctx: ClientContext): void {
+  bindTheme(ctx)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-timeline: dictionaries')
   ctx.slots.inject(
     'conversation.session.header.actions',
@@ -57,7 +60,7 @@ export function apply(ctx: ClientContext): void {
       }),
     }, UiHost),
   )
-  // 收藏面板（文件夹树）：侧栏脚入口，点击展开浮层。
+  // 收藏列表：挂在侧栏脚槽位，实际 portal 到工作区上方。
   ctx.slots.inject(
     'sidebar.footer.action',
     () => ctx.slots.register({
@@ -110,6 +113,34 @@ export function apply(ctx: ClientContext): void {
             name: attachment.name,
             data,
           }
+        },
+        // 会话窗口按页装载（每页 50 条），导出前向前翻页拉全历史再返回最新快照。
+        loadFullHistory: async (sessionId: string, options?: {
+          readonly onProgress?: (count: number) => void
+          readonly shouldCancel?: () => boolean
+        }) => {
+          const session = ctx.sessions.binding(sessionId as SessionId)?.session
+          if (session === undefined) return null
+          const countTurns = (): number => {
+            const chat = session.getSnapshot().chat
+            let count = 0
+            for (const key of chat.order) {
+              const kind = chat.nodes.get(key)?.kind
+              if (kind === 'user' || kind === 'steering') count += 1
+            }
+            return count
+          }
+          let stall = 0
+          while (session.getSnapshot().hasMore && stall < 3) {
+            if (options?.shouldCancel?.() === true) break
+            const before = session.getSnapshot().chat.order.length
+            await session.loadOlder()
+            // loadOlder 单页失败不改 hasMore：连续无进展即中止，避免死循环。
+            stall = session.getSnapshot().chat.order.length > before ? 0 : stall + 1
+            options?.onProgress?.(countTurns())
+          }
+          const chat = session.getSnapshot().chat
+          return { order: chat.order, nodes: chat.nodes }
         },
       }),
     }, ExportAction),

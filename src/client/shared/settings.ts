@@ -71,7 +71,7 @@ const DEFAULTS: PluginSettings = {
   formulaFormat: 'none',
 }
 
-const STORAGE_KEY = 'dsh.timeline.settings.v1'
+const STORAGE_KEY = 'dsh.timeline.settings'
 
 function load(): PluginSettings {
   try {

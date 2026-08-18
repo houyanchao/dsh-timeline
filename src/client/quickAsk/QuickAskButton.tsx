@@ -6,8 +6,10 @@
  *
  * 与原版的架构性适配：
  * - 门控：原「平台 features.quickAsk + isConversationRoute + URL 变化监听」
- *   在 DSH 折叠为槽位挂载 + settingsStore 开关，并在选区校验中要求
- *   [data-conversation-scroll] 存在（容器缺失视为非会话页，等价 isConversationRoute）；
+ *   在 DSH 折叠为槽位挂载（composer 存在期）+ settingsStore 开关 + 会话快照
+ *   blank 位（空白会话无正文可选，不挂选区监听）；选区包含性校验以聊天
+ *   消息流 [data-chat-flow] 为界（找不到该容器时放行任意选区兜底），
+ *   不再兼任路由探测；
  * - 插入：原 _insertToInput 的 contenteditable / Slate 分支为多平台服务，
  *   DSH composer 是受控 textarea，走 inputActions.setDraft（textarea 分支等价物）；
  * - 事件委托（原 eventDelegateManager，解决长时间停留后监听失效）由 React
@@ -53,8 +55,13 @@ const MIN_HEIGHT = 28
 /** mouseup 后延迟检查选区，确保选区已更新（原 setTimeout 10ms）。 */
 const CHECK_DELAY = 10
 
-/** DSH 会话滚动容器（原 conversationContainer 的稳定锚点）。 */
-const SCROLL_SELECTOR = '[data-conversation-scroll]'
+/**
+ * DSH 聊天消息流内容列（ChatView 的 .root/.scroll/.column 三层中的 .column，
+ * 该元素挂着稳定契约属性 data-chat-flow，不受 CSS module 哈希变化影响）。
+ * 用它做白名单可排除同在 [data-conversation-scroll] 内、但挂在 composer 上的
+ * 宿主浮层（模型选择 / 访问模式等），追问只在消息正文内触发。
+ */
+const CHAT_FLOW_SELECTOR = '[data-chat-flow]'
 /** DSH composer 的 textarea（插入后聚焦/滚动用）。 */
 const INPUT_SELECTOR = '[data-input-scroll] textarea'
 
@@ -85,9 +92,9 @@ function appendQuoteText(existingText: string, text: string): string {
 }
 
 /**
- * 选区是否有效：必须在会话正文内，且不在输入框/插件自身 UI 内
- * （原 _isValidSelection，白名单从 adapter 查找的 conversationContainer
- * 换成 DSH 稳定的 [data-conversation-scroll]）。
+ * 选区是否有效：必须在聊天消息流（[data-chat-flow]）内，且不在输入框/插件
+ * 自身 UI 内（原 _isValidSelection，白名单从 adapter 查找的
+ * conversationContainer 收窄为 ChatView 消息流内容列）。
  * @param selection - 当前选区。
  * @param buttonEl - 浮动按钮元素（排除自身）。
  * @returns 是否允许显示追问按钮。
@@ -107,18 +114,15 @@ function isValidSelection(selection: Selection, buttonEl: HTMLElement | null): b
   if (buttonEl !== null && buttonEl.contains(element)) return false
   if (element.closest(`.${uiCss.host}`) !== null) return false
 
-  // 必须在会话对话区域内（白名单机制）。容器不存在视为非会话页，
-  // 整体禁用（原 index.js 的 isConversationRoute 门控：首页等非对话页面不显示）
-  const conv = document.querySelector(SCROLL_SELECTOR)
-  if (conv === null || !conv.isConnected) return false
+  // 白名单：选区必须在聊天消息流内容列内。之前以 [data-conversation-scroll]
+  // 为界会把挂在 composer 上的宿主浮层（模型选择/访问模式等弹窗）也放行，
+  // 收窄到消息流后追问只在对话正文里出现。
+  const flow = document.querySelector(CHAT_FLOW_SELECTOR)
+  // 兜底：宿主 DOM 契约变化导致找不到消息流容器时，放行任意选区保底可用
+  // （此时仍受上方输入框/插件自身 UI 排除项约束）。
+  if (flow === null || !flow.isConnected) return true
 
-  if (conv.contains(element)) return true
-  // 原版注释：容器可能定位偏小，检查是否在同一滚动区域内
-  const convParent = conv.parentElement
-  if (convParent !== null && convParent.contains(element)) return true
-
-  // 降级：限制在 <main> 区域内（排除侧边栏/导航）
-  return element.closest('main, [role="main"]') !== null
+  return flow.contains(element)
 }
 
 /**
@@ -175,9 +179,11 @@ export type QuickAskButtonProps = PropsRuntime<'conversation.input.left'> & Prop
  * @param props - 槽位运行时 + 词典。
  * @returns 有有效选区时渲染浮动按钮，否则不渲染。
  */
-export function QuickAskButton({ useInput, inputActions, t }: QuickAskButtonProps) {
+export function QuickAskButton({ useInput, useSession, inputActions, t }: QuickAskButtonProps) {
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
-  const enabled = settings.quickAskEnabled
+  // 空白会话（hero 态）没有可选正文，不挂选区监听（原 isConversationRoute 门控的快照等价物）。
+  const blank = useSession(s => s.blank)
+  const enabled = settings.quickAskEnabled && !blank
   const draft = useInput(s => s.draft)
   const draftRef = useRef(draft)
   draftRef.current = draft

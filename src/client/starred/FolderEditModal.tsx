@@ -4,6 +4,7 @@
  * `{ name, icon }` 或 null（取消）。
  */
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { Bus } from '../ui/bus.ts'
 import { toast } from '../ui/toast.tsx'
 import css from './starred.module.css'
@@ -313,9 +314,20 @@ function FolderGlyph({ size = 18 }: { readonly size?: number }) {
   )
 }
 
-/** 弹窗宿主（挂在 UiHost 内）。 */
-export function FolderEditModalHost() {
+/**
+ * 文件夹编辑弹窗宿主。
+ * portal 到 body：收藏弹窗（时间轴）也直挂 body，挂在 shell.overlay
+ * 里会被挡住。
+ * @param props - dark 为宿主主题（portal 后需自带 data-theme）。
+ * @returns 遮罩 + 对话框。
+ */
+export function FolderEditModalHost({ dark }: { readonly dark: boolean }) {
   const state = useSyncExternalStore(bus.subscribe, () => bus.get())
   if (state === null) return null
-  return <ModalInstance key={state.id} state={state} />
+  return createPortal(
+    <div className={`${css.root} ${css.femPortal}`} data-theme={dark ? 'dark' : 'light'}>
+      <ModalInstance key={state.id} state={state} />
+    </div>,
+    document.body,
+  )
 }

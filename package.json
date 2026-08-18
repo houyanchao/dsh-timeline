@@ -23,16 +23,17 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-theme"
       ],
       "platform": "web"
     }
   },
   "scripts": {
-    "bundle": "tsdown",
+    "bundle": "tsdown && tsc -p tsconfig.types.json",
     "watch": "tsdown --watch",
     "typecheck": "tsc --noEmit",
-    "prepare": "tsdown"
+    "prepare": "npm run bundle"
   },
   "license": "GPL-3.0-or-later",
   "peerDependencies": {
@@ -46,6 +47,7 @@
     "@deepseek-ai/dsh-client-ui-settings": "*",
     "@deepseek-ai/dsh-client-ui-sidebar": "*",
     "@deepseek-ai/dsh-client-ui-slots": "*",
+    "@deepseek-ai/dsh-client-ui-theme": "*",
     "react": "^18.2.0"
   },
   "devDependencies": {
@@ -59,6 +61,7 @@
     "@deepseek-ai/dsh-client-ui-settings": "link:../../deepseekharness/packages/client/ui-settings",
     "@deepseek-ai/dsh-client-ui-sidebar": "link:../../deepseekharness/packages/client/ui-sidebar",
     "@deepseek-ai/dsh-client-ui-slots": "link:../../deepseekharness/packages/client/ui-slots",
+    "@deepseek-ai/dsh-client-ui-theme": "link:../../deepseekharness/packages/client/ui-theme",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.7",
     "lightningcss": "^1.32.0",

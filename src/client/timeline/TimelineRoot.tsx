@@ -241,7 +241,7 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
       if (activeIndex >= list.length - 1) return
 
       if (current.aiCompleteToastEnabled) {
-        showAiCompleteToast(t('timeline.aiCompleteToast').replace('{name}', 'DeepSeek'))
+        showAiCompleteToast(t('timeline.aiCompleteToast'))
       }
       if (current.aiCompleteSoundEnabled) playAiCompleteSound()
     }, 200)
