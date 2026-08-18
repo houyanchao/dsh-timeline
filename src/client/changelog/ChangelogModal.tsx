@@ -19,8 +19,6 @@ type T = TranslateNS<typeof NS>
 
 /** 插件版本（原 chrome.runtime.getManifest().version）。 */
 const VERSION = '0.1.0'
-/** 展示的用户量（原 userCount 常量）。 */
-const USER_COUNT = '37,000+'
 const DOCS_URL = 'https://timeline4ai.com/#/guide?section=timeline'
 const GITHUB_URL = 'https://github.com/houyanchao/dsh-timeline'
 
@@ -133,7 +131,7 @@ export function ChangelogHost({ t }: { readonly t: T }) {
                 <span className={css.versionBadge}>{`v${VERSION}`}</span>
               </div>
               <div className={css.subtitle}>
-                {t('changelog.subtitle').replace('{count}', USER_COUNT)}
+                {t('changelog.subtitle')}
               </div>
             </div>
           </div>
@@ -157,7 +155,7 @@ export function ChangelogHost({ t }: { readonly t: T }) {
                 onMouseEnter={(e) => {
                   tooltip.showOverlay(e.currentTarget, t('changelog.docs'), { placement: 'top' })
                 }}
-                onMouseLeave={() => { tooltip.hide() }}
+                onMouseLeave={() => { tooltip.hideOverlay() }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18" aria-hidden>
                   <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
@@ -172,7 +170,7 @@ export function ChangelogHost({ t }: { readonly t: T }) {
                 onMouseEnter={(e) => {
                   tooltip.showOverlay(e.currentTarget, t('changelog.github'), { placement: 'top' })
                 }}
-                onMouseLeave={() => { tooltip.hide() }}
+                onMouseLeave={() => { tooltip.hideOverlay() }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="18" height="18" aria-hidden>
                   <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" />

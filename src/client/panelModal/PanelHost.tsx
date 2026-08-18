@@ -218,6 +218,10 @@ export function PanelHost({ t, currentSessionId, openSession }: PanelHostProps) 
                 ? {
                     style: { cursor: 'pointer' } as React.CSSProperties,
                     onClick: () => { changelogModal.show() },
+                    onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => {
+                      tooltip.showOverlay(e.currentTarget, t('panel.changelogTooltip'), { placement: 'top' })
+                    },
+                    onMouseLeave: () => { tooltip.hideOverlay() },
                   }
                 : {})}
             >
