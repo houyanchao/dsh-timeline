@@ -1,8 +1,8 @@
 <div align="center">
 
-# DSH Timeline
+# dsh-timeline
 
-**An all-in-one productivity plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) conversations**
+**A super productivity plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/)**
 
 Timeline navigation · Starred folders · Prompt library · Conversation export · Formula copy
 
@@ -17,11 +17,11 @@ Timeline navigation · Starred folders · Prompt library · Conversation export 
 
 </div>
 
-## 📖 What is DSH Timeline?
+## 📖 What is dsh-timeline?
 
-DSH Timeline is a feature-enhancement plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/).
+dsh-timeline is a feature-enhancement plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/).
 
-Once an AI conversation gets long, finding things becomes a chore: revisiting a question means endless scrolling, key takeaways get scattered across sessions, and formulas or content are hard to take with you. DSH Timeline was built for exactly this — it renders a visual timeline beside the conversation so you can jump anywhere in one click, and rounds out the workflow with starred folders, pin markers, quick notes, a prompt library, and multi-format export: find it, note it, organize it, take it with you.
+Once an AI conversation gets long, finding things becomes a chore: revisiting a question means endless scrolling, key takeaways get scattered across sessions, and formulas or content are hard to take with you. dsh-timeline was built for exactly this — it renders a visual timeline beside the conversation so you can jump anywhere in one click, and rounds out the workflow with starred folders, pin markers, quick notes, a prompt library, and multi-format export: find it, note it, organize it, take it with you.
 
 The plugin blends right into the host UI: it follows the light / dark theme in real time, ships with an English / Chinese interface, and every feature can be toggled independently — install it and go, without disrupting your habits.
 

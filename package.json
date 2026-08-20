@@ -1,7 +1,7 @@
 {
   "name": "dsh-timeline",
   "description": "DeepSeek Harness (DSH) plugin: timeline navigation, starred folders, conversation export, prompt library, and quick notes in one.",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "keywords": [
     "dsh",
     "deepseek-harness",
@@ -50,7 +50,7 @@
     "bundle": "tsdown && tsc -p tsconfig.types.json",
     "watch": "tsdown --watch",
     "typecheck": "tsc --noEmit",
-    "prepare": "npm run bundle"
+    "prepublishOnly": "npm run bundle"
   },
   "license": "GPL-3.0-or-later",
   "peerDependencies": {

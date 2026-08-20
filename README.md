@@ -1,8 +1,8 @@
 <div align="center">
 
-# DSH Timeline
+# dsh-timeline
 
-**为 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) 打造的一站式会话效率插件**
+**专为 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) 开发的超级提效插件**
 
 时间轴导航 · 收藏文件夹 · 提示词库 · 对话导出 · 公式复制
 
@@ -17,11 +17,11 @@
 
 </div>
 
-## 📖 DSH Timeline 是什么？
+## 📖 dsh-timeline 是什么？
 
-DSH Timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) 功能增强插件。
+dsh-timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) 功能增强插件。
 
-和 AI 的对话一长，翻找就成了负担：想回看某个提问要一路滚动，重要结论散落在各个会话里，公式、内容也不好带走。DSH Timeline 为此而生——它在会话右侧生成一条可视化时间轴，让你在长对话中一键跳转；并配套收藏文件夹、图钉标记、闪记、提示词库、多格式导出等能力，把"找、记、整理、带走"这一整套体验补齐。
+和 AI 的对话一长，翻找就成了负担：想回看某个提问要一路滚动，重要结论散落在各个会话里，公式、内容也不好带走。dsh-timeline 为此而生——它在会话右侧生成一条可视化时间轴，让你在长对话中一键跳转；并配套收藏文件夹、图钉标记、闪记、提示词库、多格式导出等能力，把"找、记、整理、带走"这一整套体验补齐。
 
 插件深度贴合宿主界面：主题实时跟随、中英文界面、每个功能都可独立开关，装上即用，不打扰原有习惯。
 
