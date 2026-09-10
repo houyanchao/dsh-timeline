@@ -4,7 +4,7 @@
  * 再把最新快照的 chat.order/nodes 交给这里配对成轮次（等价于原 SCROLL 策略），
  * 图片经 readAttachment 解析成 blob URL。
  */
-import type { ChatNodeStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ChatNodeStore } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ExportImage, ExportTurn } from './constants.ts'
 
 /** 一次 readAttachment 解析结果的最小形态。 */

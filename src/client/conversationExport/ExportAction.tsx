@@ -8,6 +8,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// 仅类型：拉入 useChat 的 SessionStandardProps 合并。
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { NS } from '../locales.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { settingsStore } from '../shared/settings.ts'
@@ -106,10 +108,10 @@ function preview(text: string): string {
  * @param props - 槽位运行时 + 词典 + 图片解析器。
  * @returns 导出按钮；设置关闭时不渲染。
  */
-export function ExportAction({ sessionId, useSession, useSessions, resolveAttachment, loadFullHistory, t }: ExportActionProps) {
+export function ExportAction({ sessionId, useChat, useSessions, resolveAttachment, loadFullHistory, t }: ExportActionProps) {
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
-  const chatOrder = useSession(s => s.chat.order)
-  const nodes = useSession(s => s.chat.nodes)
+  const chatOrder = useChat(s => s.order)
+  const nodes = useChat(s => s.nodes)
   const displayTitle = useSessions(s => s.byId[sessionId]?.displayTitle)
 
   const [open, setOpen] = useState(false)

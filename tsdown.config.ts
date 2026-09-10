@@ -16,15 +16,17 @@ import { transform } from 'lightningcss'
 // 必须与 package.json 的 name 一致：浏览器端按包名匹配 __ModuleLoader__ 注册 id。
 const PLUGIN_ID = 'dsh-timeline'
 
-/** 平台模块表（与 deepseekharness packages/client/web/src/platform.ts 保持一致）。 */
+/**
+ * 平台模块表：必须与 deepseekharness packages/client/web/src/platform.ts 的
+ * PLATFORM_MODULES + PRELOADED_CLIENT_EXTERNALS 逐条一致。表内条目保持 external，
+ * 由加载器注入的 require 解析成宿主单例；漏一条就会被 noExternal 内联成第二份实例，
+ * 多一条则在运行时 require 落空（client-modules: ... missed the module table）。
+ */
 const CLIENT_EXTERNALS: readonly string[] = [
   'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis',
+  '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-ui-slots',
-  '@deepseek-ai/dsh-client-web-react',
   '@deepseek-ai/dsh-client-ui-primitives',
-  '@deepseek-ai/dsh-client-ui-attachment',
-  '@deepseek-ai/dsh-client-schema-form',
-  '@deepseek-ai/dsh-client-runtime/client',
 ]
 
 const CSS_VIRTUAL_PREFIX = '\0dsh-css:'

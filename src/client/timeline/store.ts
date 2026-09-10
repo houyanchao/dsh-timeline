@@ -1,6 +1,6 @@
 /** 时间轴插件的会话级 UI 状态：显隐/折叠偏好（localStorage 持久化）。
  * 收藏数据已上移到全局收藏存储（../starred/storage.ts，含文件夹归属）。 */
-import { defineStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore } from '@deepseek-ai/dsh-client-store'
 
 /** 一条收藏记录：摘要与提问时间，用于时间轴打点与列表展示。 */
 export interface StarRecord {

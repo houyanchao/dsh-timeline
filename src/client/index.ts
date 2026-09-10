@@ -1,8 +1,14 @@
 /**
  * dsh-timeline，浏览器半：注册词典与会话头部的时间轴入口。
- * 时间轴数据来自 Chat 快照（useSession），显隐与收藏走会话级持久化 store。
+ * 时间轴数据来自 Chat 快照（useChat），显隐与收藏走会话级持久化 store。
  */
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
+// 仅类型：拉入各服务的 Context 合并——ctx.sessions（session-controller）、
+// ctx.slots（ui-renderer）、以及 ConversationViewSnapshotMap 的 'chat' 键（ui-chat）。
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -10,6 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { en, NS, zh, type TimelineKey } from './locales.ts'
 import { bindTheme } from './shared/theme.ts'
+import { bindOfficialRailHiding } from './shared/officialRail.ts'
 import { createTimelineStore } from './timeline/store.ts'
 import { TimelineAction } from './timeline/TimelineAction.tsx'
 import { StarredPanel } from './starred/StarredPanel.tsx'
@@ -28,8 +35,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export type { TimelineActionProps } from './timeline/TimelineAction.tsx'
 export { createTimelineStore } from './timeline/store.ts'
 
-/** 词典注册、槽位贡献、会话导航与主题服务。 */
-export const inject = ['slots', 'locale', 'sessions', 'theme']
+/** 词典注册、槽位贡献、会话导航、Conversation 装配与主题服务。 */
+export const inject = ['slots', 'locale', 'sessions', 'theme', 'uiConversation']
 
 /**
  * 客户端插件体：注册词典与会话头部时间轴入口。
@@ -37,6 +44,8 @@ export const inject = ['slots', 'locale', 'sessions', 'theme']
  */
 export function apply(ctx: ClientContext): void {
   bindTheme(ctx)
+  // 宿主自带的轮次导航条与本插件时间轴重叠，插件时间轴开启时隐藏之。
+  bindOfficialRailHiding(ctx)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-timeline: dictionaries')
   ctx.slots.inject(
     'conversation.session.header.actions',
@@ -121,8 +130,12 @@ export function apply(ctx: ClientContext): void {
         }) => {
           const session = ctx.sessions.binding(sessionId as SessionId)?.session
           if (session === undefined) return null
+          // Chat 数据不再挂在 Session 快照上，改由 Conversation 装配按 target 发布。
+          const chatSource = ctx.uiConversation.binding(sessionId as SessionId).target('chat')
+          const orderLength = (): number => chatSource.getSnapshot()?.order.length ?? 0
           const countTurns = (): number => {
-            const chat = session.getSnapshot().chat
+            const chat = chatSource.getSnapshot()
+            if (chat === undefined) return 0
             let count = 0
             for (const key of chat.order) {
               const kind = chat.nodes.get(key)?.kind
@@ -133,13 +146,14 @@ export function apply(ctx: ClientContext): void {
           let stall = 0
           while (session.getSnapshot().hasMore && stall < 3) {
             if (options?.shouldCancel?.() === true) break
-            const before = session.getSnapshot().chat.order.length
+            const before = orderLength()
             await session.loadOlder()
             // loadOlder 单页失败不改 hasMore：连续无进展即中止，避免死循环。
-            stall = session.getSnapshot().chat.order.length > before ? 0 : stall + 1
+            stall = orderLength() > before ? 0 : stall + 1
             options?.onProgress?.(countTurns())
           }
-          const chat = session.getSnapshot().chat
+          const chat = chatSource.getSnapshot()
+          if (chat === undefined) return null
           return { order: chat.order, nodes: chat.nodes }
         },
       }),

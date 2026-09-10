@@ -79,6 +79,17 @@
   transform: translateX(20px);
 }
 
+/* ==== 让位：本插件时间轴在场时隐藏宿主的轮次导航栏（ui-chat TurnNavigator）
+   两条轴共用正文右沟槽，同时出现会叠在一起。宿主那块既无开关也无稳定 class
+   （CSS Modules 类名带随宿主版本变的 hash），只能按结构认：消息列
+   [data-chat-flow] 紧邻的前一个、包着 <nav> 的零高 sticky 槽位。
+   条件挂在 body 上——时间轴 portal 到 body 下，总开关关掉或对话视图不在场时
+   wrapper 不挂载，规则随之失效（折叠只是透明，仍算在场，不放原生轴回来）。
+   宿主改动这段结构时规则静默不匹配，原生轴回归，不会报错。 ==== */
+:global(body:has([data-dsh-tl-wrapper])) :global(div:has(> nav):has(+ [data-chat-flow])) {
+  display: none;
+}
+
 /* ==== 折叠/展开按钮（.timeline-toggle-btn）
    与 .wrapper 同理压在宿主 overlayLayer（20）之下。 ==== */
 .toggleBtn {
@@ -1189,4 +1200,13 @@
 
 .headerBtn:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* ==== 宿主轮次导航（ui-chat TurnNavigator） ====
+   与插件时间轴功能重叠，插件时间轴开启时盖掉。开关属性由
+   shared/officialRail.ts 跟随 timelineEnabled 打在 html 上。
+   选择器只用稳定契约：轨道槽位是消息流列 [data-chat-flow] 的前一个兄弟，
+   槽位内是带 aria-label 的 <nav>；不引用宿主哈希类名。 */
+:global(html[data-dsh-tl-hide-rail] div:has(+ [data-chat-flow]) > nav[aria-label]) {
+  display: none;
 }

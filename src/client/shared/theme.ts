@@ -5,7 +5,7 @@
  * 信号（原实现读 boot 脚本写入的 html color-scheme / body 属性 +
  * MutationObserver，那是 ThemeRuntime 对外 DOM 投影，非正式接口）。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
 
 let dark = false

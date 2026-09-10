@@ -1,7 +1,7 @@
 {
   "name": "dsh-timeline",
   "description": "DeepSeek Harness (DSH) plugin: timeline navigation, starred folders, conversation export, prompt library, and quick notes in one.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "keywords": [
     "dsh",
     "deepseek-harness",
@@ -40,6 +40,7 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-chat",
         "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-theme"
       ],
@@ -55,12 +56,16 @@
   "license": "GPL-3.0-or-later",
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-api-session-controller": "*",
+    "@deepseek-ai/dsh-client-connection": "*",
     "@deepseek-ai/dsh-client-locale": "*",
-    "@deepseek-ai/dsh-client-runtime": "*",
+    "@deepseek-ai/dsh-client-store": "*",
+    "@deepseek-ai/dsh-client-ui-chat": "*",
     "@deepseek-ai/dsh-client-ui-conversation": "*",
     "@deepseek-ai/dsh-client-ui-input-trigger": "*",
     "@deepseek-ai/dsh-client-ui-layout": "*",
     "@deepseek-ai/dsh-client-ui-primitives": "*",
+    "@deepseek-ai/dsh-client-ui-renderer": "*",
     "@deepseek-ai/dsh-client-ui-settings": "*",
     "@deepseek-ai/dsh-client-ui-sidebar": "*",
     "@deepseek-ai/dsh-client-ui-slots": "*",
@@ -69,12 +74,16 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "link:../../deepseekharness/vendor/cordis",
+    "@deepseek-ai/dsh-api-session-controller": "link:../../deepseekharness/packages/api/session-controller",
+    "@deepseek-ai/dsh-client-connection": "link:../../deepseekharness/packages/client/connection",
     "@deepseek-ai/dsh-client-locale": "link:../../deepseekharness/packages/client/locale",
-    "@deepseek-ai/dsh-client-runtime": "link:../../deepseekharness/packages/client/runtime",
+    "@deepseek-ai/dsh-client-store": "link:../../deepseekharness/packages/client/store",
+    "@deepseek-ai/dsh-client-ui-chat": "link:../../deepseekharness/packages/client/ui-chat",
     "@deepseek-ai/dsh-client-ui-conversation": "link:../../deepseekharness/packages/client/ui-conversation",
     "@deepseek-ai/dsh-client-ui-input-trigger": "link:../../deepseekharness/packages/client/ui-input-trigger",
     "@deepseek-ai/dsh-client-ui-layout": "link:../../deepseekharness/packages/client/ui-layout",
     "@deepseek-ai/dsh-client-ui-primitives": "link:../../deepseekharness/packages/client/ui-primitives",
+    "@deepseek-ai/dsh-client-ui-renderer": "link:../../deepseekharness/packages/client/ui-renderer",
     "@deepseek-ai/dsh-client-ui-settings": "link:../../deepseekharness/packages/client/ui-settings",
     "@deepseek-ai/dsh-client-ui-sidebar": "link:../../deepseekharness/packages/client/ui-sidebar",
     "@deepseek-ai/dsh-client-ui-slots": "link:../../deepseekharness/packages/client/ui-slots",

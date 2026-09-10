@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime, PropsStore, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ChatNodeStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ChatNodeStore } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS } from '../locales.ts'
 import { summarizeAssistantBlocks, summarizeBlocks } from '../shared/text.ts'
@@ -112,9 +112,9 @@ function collectItems(
  * @param props - 槽位运行时 + store + 词典。
  * @returns 开关按钮；开启且有提问时渲染时间轴。
  */
-export function TimelineAction({ sessionId, useSession, useSessions, useStore, actions, t }: TimelineActionProps) {
-  const order = useSession(s => s.chat.order)
-  const nodes = useSession(s => s.chat.nodes)
+export function TimelineAction({ sessionId, useChat, useSession, useSessions, useStore, actions, t }: TimelineActionProps) {
+  const order = useChat(s => s.order)
+  const nodes = useChat(s => s.nodes)
   const running = useSession(s => s.running)
   const collapsed = useStore(s => s.collapsed)
   const chatViewPresent = useChatViewPresent()
