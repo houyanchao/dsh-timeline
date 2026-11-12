@@ -2,9 +2,9 @@
 
 # dsh-timeline
 
-**专为 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) 开发的超级提效插件**
+**[DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) 提效插件**
 
-时间轴导航 · 收藏文件夹 · 提示词库 · 对话导出 · 公式复制
+时间轴导航 · 收藏文件夹 · 提示词库 · 对话导出 · 公式复制 · 截图
 
 [![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-6128FF)](https://deepseek-harness.github.io/deepseek-harness/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](./LICENSE)
@@ -36,6 +36,7 @@ dsh-timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/dee
 - ⌨️ **智能输入** — `Enter` 换行、双击 `Enter` 发送；选中文字快速追问；发送后保持阅读位置
 - 📤 **对话导出** — Markdown / TXT / JSON / CSV / PNG / PDF，数学公式照常渲染
 - 🧮 **公式复制** — 点击公式复制 LaTeX 或 MathML，可直接粘贴进 Word
+- 📸 **消息截图** — 点击回复下方的「截图」，勾选要截取的提问和回复，选择清晰度后复制图片或下载 PNG
 - 🔔 **回复提醒** — 浏览历史时回复完成，弹窗 + 可选提示音
 - 💾 **数据备份** — 插件数据一键导出 / 导入（JSON）
 - 🎨 **贴合宿主** — 深浅主题实时跟随，中英文界面，逐功能开关

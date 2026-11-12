@@ -2,9 +2,9 @@
 
 # dsh-timeline
 
-**A super productivity plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/)**
+**A productivity plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/)**
 
-Timeline navigation · Starred folders · Prompt library · Conversation export · Formula copy
+Timeline navigation · Starred folders · Prompt library · Conversation export · Formula copy · Screenshots
 
 [![DSH Plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-6128FF)](https://deepseek-harness.github.io/deepseek-harness/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](./LICENSE)
@@ -36,6 +36,7 @@ The plugin blends right into the host UI: it follows the light / dark theme in r
 - ⌨️ **Smart input** — `Enter` for a newline, double-`Enter` to send; quote selected text as a follow-up; keep your reading position after sending
 - 📤 **Conversation export** — Markdown / TXT / JSON / CSV / PNG / PDF, with math formulas rendered as usual
 - 🧮 **Formula copy** — click a formula to copy it as LaTeX or MathML, ready to paste into Word
+- 📸 **Message screenshots** — click Screenshot below a reply, select the questions and replies to capture, then choose a resolution and copy the image or download a PNG
 - 🔔 **Reply alerts** — toast and optional sound when a reply finishes while you are reading earlier messages
 - 💾 **Data backup** — one-click export / import of all plugin data (JSON)
 - 🎨 **Native feel** — follows the host's light / dark theme, English / Chinese UI, per-feature toggles
