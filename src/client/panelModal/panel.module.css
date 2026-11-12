@@ -831,6 +831,10 @@
   padding: 8px 10px;
 }
 
+.starredSidebarToggle .settingItem + .settingItem {
+  margin-top: 8px;
+}
+
 /* ============================================
    提示词 tab（原 prompt/styles.css 管理部分）
    ============================================ */

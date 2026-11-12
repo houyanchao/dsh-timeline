@@ -51,6 +51,8 @@ export interface PluginSettings {
   readonly aiCompleteSoundEnabled: boolean
   /** 侧栏收藏面板开关（原 sidebarStarredPlatformSettings[id] !== false，默认开）。 */
   readonly starredPanelEnabled: boolean
+  /** 从工作区原生列表隐藏已收藏的整段对话。 */
+  readonly hideStarredFromNativeList: boolean
   /** 公式复制：LaTeX 开关（原 formulaLatexEnabled !== false，默认开）。 */
   readonly formulaLatexEnabled: boolean
   /** 公式复制：MathML 开关（原 formulaMathMLEnabled === true，默认关）。 */
@@ -77,6 +79,7 @@ const DEFAULTS: PluginSettings = {
   aiCompleteToastEnabled: true,
   aiCompleteSoundEnabled: false,
   starredPanelEnabled: true,
+  hideStarredFromNativeList: false,
   formulaLatexEnabled: true,
   formulaMathMLEnabled: false,
   formulaFormat: 'none',

@@ -1,7 +1,7 @@
 {
   "name": "dsh-timeline",
   "description": "DeepSeek Harness (DSH) plugin: timeline navigation, starred folders, conversation export, prompt library, and quick notes in one.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "keywords": [
     "dsh",
     "deepseek-harness",

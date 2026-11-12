@@ -285,14 +285,15 @@ export function PanelHost({ t, currentSessionId, openSession }: PanelHostProps) 
 
 interface ToggleProps {
   readonly checked: boolean
+  readonly ariaLabel?: string
   readonly onChange: (checked: boolean) => void
 }
 
 /** 开关（原 .ait-toggle-switch）。 */
-function Toggle({ checked, onChange }: ToggleProps) {
+function Toggle({ checked, ariaLabel, onChange }: ToggleProps) {
   return (
     <label className={css.toggle}>
-      <input type="checkbox" checked={checked} onChange={(e) => { onChange(e.target.checked) }} />
+      <input type="checkbox" checked={checked} aria-label={ariaLabel} onChange={(e) => { onChange(e.target.checked) }} />
       <span className={css.toggleSlider} />
     </label>
   )
@@ -792,7 +793,7 @@ function StarredTab({ t, currentSessionId, openSession, onClose }: StarredTabPro
           t={t}
         />
       </div>
-      {/* 底部：显示文件夹开关（DSH 单平台，开关直接内联，不再弹平台子弹窗） */}
+      {/* 侧栏文件夹与工作区列表设置。 */}
       <div className={css.starredSidebarDivider} />
       <div className={css.starredSidebarToggle}>
         <SettingItem
@@ -802,6 +803,17 @@ function StarredTab({ t, currentSessionId, openSession, onClose }: StarredTabPro
             <Toggle
               checked={settings.starredPanelEnabled}
               onChange={(enabled) => { settingsStore.set({ starredPanelEnabled: enabled }) }}
+            />
+          )}
+        />
+        <SettingItem
+          label={t('panel.starredDedupLabel')}
+          hint={t('panel.starredDedupHint')}
+          control={(
+            <Toggle
+              checked={settings.hideStarredFromNativeList}
+              ariaLabel={t('panel.starredDedupLabel')}
+              onChange={(enabled) => { settingsStore.set({ hideStarredFromNativeList: enabled }) }}
             />
           )}
         />

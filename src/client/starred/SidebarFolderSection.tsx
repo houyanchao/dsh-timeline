@@ -8,12 +8,12 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
-import { starredUiStore } from './storage.ts'
+import { sessionStarKey, starredStore, starredUiStore } from './storage.ts'
+import { WORKSPACES_SLOT } from './sessionRowDom.ts'
 import { StarredFolderHeader } from './StarredFolderHeader.tsx'
 import { StarredTree } from './StarredTree.tsx'
 import css from './starred.module.css'
 
-const WORKSPACES_SLOT = '[data-slot="sidebar.workspaces"]'
 const SEAT_ATTR = 'data-dsh-tl-folder-section'
 
 /** Mac 平台（默认文件夹渐变用蓝色系）。 */
@@ -61,10 +61,25 @@ function useFolderSectionSeat(active: boolean): HTMLElement | null {
   return seat
 }
 
+/** 按原生会话行的 data-row-key 隐藏已收藏会话，范围仅限工作区列表。 */
+function HideStarredNativeSessions() {
+  const { items } = useSyncExternalStore(starredStore.subscribe, starredStore.getState)
+  const keys = new Set(items.flatMap(item => item.kind === 'session' ? [sessionStarKey(item.sessionId)] : []))
+  if (keys.size === 0) return null
+  const selectors = [...keys].map(key => `[data-row-key="${CSS.escape(key)}"]`)
+  return createPortal(
+    <style data-dsh-tl-starred-dedup>
+      {`${WORKSPACES_SLOT} div[role="treeitem"]:is(${selectors.join(',')}){display:none}`}
+    </style>,
+    document.head,
+  )
+}
+
 /** 侧栏内联文件夹列表 props。 */
 export interface SidebarFolderSectionProps {
   readonly wide: boolean
   readonly enabled: boolean
+  readonly hideStarredFromNativeList: boolean
   readonly dark: boolean
   readonly currentSessionId: string | undefined
   readonly openSession: (sessionId: string) => void
@@ -78,7 +93,7 @@ export interface SidebarFolderSectionProps {
  * @returns portal 到工作区槽位前的区块；不展示时 null。
  */
 export function SidebarFolderSection({
-  wide, enabled, dark, currentSessionId, openSession, resolveSessionTitle, t,
+  wide, enabled, hideStarredFromNativeList, dark, currentSessionId, openSession, resolveSessionTitle, t,
 }: SidebarFolderSectionProps) {
   const active = wide && enabled
   const seat = useFolderSectionSeat(active)
@@ -97,6 +112,7 @@ export function SidebarFolderSection({
       data-dsh-starred-root
       data-dsh-starred-boundary
     >
+      {hideStarredFromNativeList ? <HideStarredNativeSessions /> : null}
       <StarredFolderHeader
         t={t}
         onToggleCollapse={() => { starredUiStore.setSidebarCollapsed(!ui.sidebarCollapsed) }}

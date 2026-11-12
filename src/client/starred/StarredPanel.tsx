@@ -60,6 +60,7 @@ export function StarredPanel({ useSessions, openSession, t, wide }: StarredPanel
           <SidebarFolderSection
             wide={wide}
             enabled={settings.starredPanelEnabled}
+            hideStarredFromNativeList={settings.hideStarredFromNativeList}
             dark={dark}
             currentSessionId={currentSessionId}
             openSession={openSession}
