@@ -166,7 +166,10 @@ export function NotepadHost({ dark, t }: NotepadHostProps) {
   flushRef.current = flush
   useEffect(() => {
     hostFlush = () => { flushRef.current() }
-    return () => { hostFlush = null }
+    return () => {
+      if (saveTimerRef.current !== null) flushRef.current()
+      hostFlush = null
+    }
   }, [])
 
   // 笔记切换 / 外部（跨标签页）内容变化 → 同步编辑器。
@@ -178,12 +181,14 @@ export function NotepadHost({ dark, t }: NotepadHostProps) {
     const last = lastSyncedRef.current
     if (last.id !== id || (content !== last.content && content !== valueRef.current)) {
       lastSyncedRef.current = { id, content }
+      valueRef.current = content
       setValue(content)
       // 内容更新后光标定位末尾（原 openNote / storage 同步行为）。
-      requestAnimationFrame(() => {
+      const raf = requestAnimationFrame(() => {
         const ta = textareaRef.current
         if (ta !== null) ta.selectionStart = ta.selectionEnd = ta.value.length
       })
+      return () => { cancelAnimationFrame(raf) }
     } else {
       lastSyncedRef.current = { id, content }
     }
@@ -199,12 +204,14 @@ export function NotepadHost({ dark, t }: NotepadHostProps) {
       geoRef.current = { ...geo, position: calcDefaultPosition(geo.size) }
     }
     const { position, size } = geoRef.current
-    const x = window.innerWidth - (position.right ?? 0) - size.width
-    const y = window.innerHeight - (position.bottom ?? 0) - size.height
+    const width = Math.min(size.width, window.innerWidth - 16)
+    const height = Math.min(size.height, window.innerHeight - 16)
+    const x = window.innerWidth - (position.right ?? 0) - width
+    const y = window.innerHeight - (position.bottom ?? 0) - height
     panel.style.width = `${size.width}px`
     panel.style.height = `${size.height}px`
-    panel.style.left = `${Math.max(0, Math.min(window.innerWidth - size.width, x))}px`
-    panel.style.top = `${Math.max(0, Math.min(window.innerHeight - size.height, y))}px`
+    panel.style.left = `${Math.max(0, Math.min(window.innerWidth - width, x))}px`
+    panel.style.top = `${Math.max(0, Math.min(window.innerHeight - height, y))}px`
   }
 
   // 打开时应用几何；窗口 resize 重新换算（原 _onWindowResize）。
@@ -507,6 +514,7 @@ export function NotepadHost({ dark, t }: NotepadHostProps) {
     <div
       ref={panelRef}
       className={panelClass}
+      hidden={!ui.open}
       data-theme={dark ? 'dark' : 'light'}
     >
       <div className={css.header}>

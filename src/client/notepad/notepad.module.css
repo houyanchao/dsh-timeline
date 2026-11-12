@@ -35,6 +35,8 @@
   z-index: 99998;
   width: 260px;
   height: 370px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
   display: flex;
   flex-direction: column;
   border-radius: 12px;
@@ -52,6 +54,10 @@
     opacity 0.15s cubic-bezier(0, 0, 0.2, 1),
     transform 0.15s cubic-bezier(0, 0, 0.2, 1);
   overflow: hidden;
+}
+
+.panel[hidden] {
+  display: none;
 }
 
 .panel[data-theme='dark'] {

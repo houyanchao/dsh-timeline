@@ -7,6 +7,7 @@ import {
   ceFormatChatTime, ceFormatLocalTime,
   type CeTexts, type ExportFormat, type ExportImage, type ExportJob, type ExportTurn,
 } from './constants.ts'
+import { markdownImages } from './markdown.ts'
 
 function turnImages(turn: ExportTurn): readonly ExportImage[] {
   return [...turn.user.images, ...turn.assistant.images]
@@ -49,38 +50,43 @@ export function buildMarkdown(job: ExportJob, texts: CeTexts): string {
   lines.push('---')
 
   for (const turn of turns) {
-    // 用户
-    lines.push('')
-    lines.push(`**${texts.exportRoleUser}：**`)
-    const mdAskTime = options.showConversationTime ? ceFormatChatTime(turn.user.time) : ''
-    if (mdAskTime !== '') {
+    if (!turn.omitUser) {
+      // 用户
       lines.push('')
-      lines.push(`> ${texts.askTimeLabel}: ${mdAskTime}`)
-    }
-    lines.push('')
-    lines.push(turn.user.text !== '' ? turn.user.text : texts.emptyUserPreview)
+      lines.push(`**${texts.exportRoleUser}：**`)
+      const mdAskTime = options.showConversationTime ? ceFormatChatTime(turn.user.time) : ''
+      if (mdAskTime !== '') {
+        lines.push('')
+        lines.push(`> ${texts.askTimeLabel}: ${mdAskTime}`)
+      }
+      lines.push('')
+      lines.push(turn.user.text !== '' ? turn.user.text : texts.emptyUserPreview)
 
-    for (const image of turn.user.images) {
-      lines.push('')
-      lines.push(...imageMarkdownLines(image, texts))
-    }
-
-    // 助手
-    lines.push('')
-    lines.push(`**${texts.exportRoleAssistant}：**`)
-    const mdAsstImages = turn.assistant.images
-    if (turn.assistant.markdown !== '') {
-      lines.push('')
-      lines.push(turn.assistant.markdown)
-    } else if (mdAsstImages.length === 0) {
-      // 无文本且无图片时才显示占位（纯图片回复不应提示“未找到回复内容”）。
-      lines.push('')
-      lines.push(texts.emptyAssistant)
+      for (const image of turn.user.images) {
+        lines.push('')
+        lines.push(...imageMarkdownLines(image, texts))
+      }
     }
 
-    for (const image of mdAsstImages) {
+    if (!turn.omitAssistant) {
+      // 助手
       lines.push('')
-      lines.push(...imageMarkdownLines(image, texts))
+      lines.push(`**${texts.exportRoleAssistant}：**`)
+      const sources = new Set(markdownImages(turn.assistant.markdown).map(image => image.src))
+      const mdAsstImages = turn.assistant.images.filter(image => !sources.has(image.src))
+      if (turn.assistant.markdown !== '') {
+        lines.push('')
+        lines.push(turn.assistant.markdown)
+      } else if (mdAsstImages.length === 0) {
+        // 无文本且无图片时才显示占位（纯图片回复不应提示“未找到回复内容”）。
+        lines.push('')
+        lines.push(texts.emptyAssistant)
+      }
+
+      for (const image of mdAsstImages) {
+        lines.push('')
+        lines.push(...imageMarkdownLines(image, texts))
+      }
     }
 
     lines.push('')
@@ -101,15 +107,19 @@ export function buildTxt(job: ExportJob, texts: CeTexts): string {
 
   for (const turn of turns) {
     lines.push('')
-    const txtAskTime = options.showConversationTime ? ceFormatChatTime(turn.user.time) : ''
-    lines.push(txtAskTime !== '' ? `${texts.exportRoleUser}（${txtAskTime}）：` : `${texts.exportRoleUser}：`)
-    lines.push(turn.user.text !== '' ? turn.user.text : texts.emptyUserPreview)
-    lines.push('')
-    lines.push(`${texts.exportRoleAssistant}：`)
-    if (turn.assistant.text !== '') {
-      lines.push(turn.assistant.text)
-    } else if (turn.assistant.images.length === 0) {
-      lines.push(texts.emptyAssistant)
+    if (!turn.omitUser) {
+      const txtAskTime = options.showConversationTime ? ceFormatChatTime(turn.user.time) : ''
+      lines.push(txtAskTime !== '' ? `${texts.exportRoleUser}（${txtAskTime}）：` : `${texts.exportRoleUser}：`)
+      lines.push(turn.user.text !== '' ? turn.user.text : texts.emptyUserPreview)
+      lines.push('')
+    }
+    if (!turn.omitAssistant) {
+      lines.push(`${texts.exportRoleAssistant}：`)
+      if (turn.assistant.text !== '') {
+        lines.push(turn.assistant.text)
+      } else if (turn.assistant.images.length === 0) {
+        lines.push(texts.emptyAssistant)
+      }
     }
 
     const images = turnImages(turn)
@@ -160,18 +170,18 @@ export function buildJson(job: ExportJob, texts: CeTexts): string {
 
   const conversation = turns.map(turn => ({
     order: turn.order,
-    user: {
+    ...(!turn.omitUser && { user: {
       text: turn.user.text,
       ...(options.showConversationTime && turn.user.time !== 0
         ? { time: ceFormatChatTime(turn.user.time) }
         : {}),
       images: turn.user.images.map(serializeImage),
-    },
-    assistant: {
+    } }),
+    ...(!turn.omitAssistant && { assistant: {
       text: turn.assistant.text,
       markdown: turn.assistant.markdown,
       images: turn.assistant.images.map(serializeImage),
-    },
+    } }),
   }))
 
   void texts

@@ -83,8 +83,8 @@ interface HoverTarget {
 export function TimelineBar({ items, starred, pinned, activeKey, running, onActiveChange, onJump, onToggleStar, onTogglePin, t }: TimelineBarProps) {
   const barRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  const [geometry, setGeometry] = useState<{ dotNs: readonly number[]; contentHeight: number; compact: boolean }>(
-    { dotNs: [], contentHeight: 0, compact: false },
+  const [geometry, setGeometry] = useState(
+    { dotNs: [] as readonly number[], yPositions: [] as readonly number[], contentHeight: 0, compact: false, gap: LAYOUT.MIN_GAP as number },
   )
   /** 虚拟化可见区间（原 visibleRange，含前后 buffer）。 */
   const [visibleRange, setVisibleRange] = useState<{ start: number; end: number }>({ start: 0, end: -1 })
@@ -165,10 +165,7 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
   const updateVirtualRange = useCallback(() => {
     const track = trackRef.current
     if (track === null) return
-    const { dotNs, contentHeight } = geometryRef.current
-    const pad = LAYOUT.TRACK_PADDING
-    const usable = Math.max(1, contentHeight - 2 * pad)
-    const yPositions = dotNs.map(n => pad + n * usable)
+    const { yPositions } = geometryRef.current
     const next = computeVisibleRange(yPositions, track.scrollTop, track.clientHeight)
     setVisibleRange(prev => (prev.start === next.start && prev.end === next.end ? prev : next))
   }, [])
@@ -396,14 +393,20 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
   useEffect(() => cancelHide, [cancelHide])
 
   const compactClass = geometry.compact ? ` ${css.barCompact}` : ''
+  const markerSize = Math.max(0, Math.min(geometry.gap - 2, geometry.gap >= 20 ? 16 : geometry.gap >= 16 ? 14 : 12))
+  const compactStyle = geometry.compact ? {
+    '--tl-node-gap': `${geometry.gap}px`,
+    '--tl-marker-size': `${markerSize}px`,
+  } as CSSProperties : undefined
+  const visibleItems = items.slice(visibleRange.start, visibleRange.end + 1)
 
   return (
     <>
-      <div ref={barRef} className={css.bar + compactClass} aria-label={t('rail.aria')}>
+      <div ref={barRef} className={css.bar + compactClass} style={compactStyle} aria-label={t('rail.aria')}>
         <div ref={trackRef} className={css.track}>
           <div className={css.trackContent} style={{ height: `${geometry.contentHeight}px` }}>
-            {items.map((item, index) => {
-              if (index < visibleRange.start || index > visibleRange.end) return null
+            {visibleItems.map((item, offset) => {
+              const index = visibleRange.start + offset
               const isStarred = starred[item.key] !== undefined
               const isActive = item.key === activeKey
               const n = geometry.dotNs[index] ?? 0
@@ -437,13 +440,13 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
               )
             })}
             {/* 图钉标记（原 renderPinMarkers：独立元素、与圆点同法定位） */}
-            {items.map((item, index) => (
-              index >= visibleRange.start && index <= visibleRange.end && pinned.has(item.key)
+            {visibleItems.map((item, offset) => (
+              pinned.has(item.key)
                 ? (
                   <span
                     key={`pin-${item.key}`}
                     className={css.pinMarker}
-                    style={{ '--n': geometry.dotNs[index] ?? 0 } as CSSProperties}
+                    style={{ '--n': geometry.dotNs[visibleRange.start + offset] ?? 0 } as CSSProperties}
                     aria-hidden
                   />
                 )

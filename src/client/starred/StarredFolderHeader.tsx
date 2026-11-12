@@ -37,17 +37,11 @@ export function StarredFolderHeader({ onToggleCollapse, t }: StarredFolderHeader
           onClick={(e) => { e.stopPropagation() }}
           onMouseEnter={(e) => {
             tooltip.show('starred-help', e.currentTarget, (
-              <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{t('starred.helpDesc')}</div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('starred.helpTipsTitle')}</div>
-                <div style={{ paddingLeft: 2 }}>
-                  <div>{`· ${t('starred.helpTip1')}`}</div>
-                  <div>{`· ${t('starred.helpTip2')}`}</div>
-                  <div>{`· ${t('starred.helpTip3')}`}</div>
-                  <div>{`· ${t('starred.helpTip4')}`}</div>
-                </div>
+              <div style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600, lineHeight: 1.6 }}>
+                <div>{t('starred.helpDesc')}</div>
+                <div>{t('starred.helpShortTip')}</div>
               </div>
-            ), { placement: 'top', gap: 6, maxWidth: 260, noArrow: true })
+            ), { placement: 'top', gap: 6, maxWidth: 260, noArrow: true, theme: 'inverse' })
           }}
           onMouseLeave={() => { tooltip.hide() }}
         >

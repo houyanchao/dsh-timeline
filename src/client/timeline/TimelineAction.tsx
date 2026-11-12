@@ -12,13 +12,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS } from '../locales.ts'
 import { summarizeAssistantBlocks, summarizeBlocks } from '../shared/text.ts'
 import { settingsStore } from '../shared/settings.ts'
-import { nodeStarKey, pinsStore, sessionStarKey, starredStore } from '../starred/storage.ts'
+import { nodeStarKey, pendingNavigateStore, pinsStore, sessionStarKey, starredStore } from '../starred/storage.ts'
 import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import type { createTimelineStore, StarRecord } from './store.ts'
 import { TimelineRoot } from './TimelineRoot.tsx'
 import { starEditModal } from './StarModal.tsx'
-import type { TimelineItem } from './TimelineBar.tsx'
+import { findMessageElement, findScrollContainer, type TimelineItem } from './TimelineBar.tsx'
+import { smoothScrollTo } from './engine.ts'
 import css from './timeline.module.css'
 
 /** 整会话收藏 toast 配色（原 toggleChatStar 的 toastColor；黑底改取宿主 tooltip 底板 token）。 */
@@ -32,6 +33,7 @@ export type TimelineActionProps =
   PropsRuntime<'conversation.session.header.actions'>
   & PropsStore<ReturnType<typeof createTimelineStore>>
   & PropsLocale<typeof NS>
+  & { readonly loadSavedQuestion: (sessionId: string, nodeKey: string, signal: AbortSignal) => Promise<boolean> }
 
 /** 计入时间轴的用户输入节点类别（提问 + 轮中追问）。 */
 const USER_KINDS = new Set(['user', 'steering'])
@@ -54,14 +56,85 @@ const CHAT_VIEW_SELECTOR = '[data-chat-flow]'
 function useChatViewPresent(): boolean {
   const [present, setPresent] = useState(() => document.querySelector(CHAT_VIEW_SELECTOR) !== null)
   useEffect(() => {
-    // 状态不变时 setState 由 React 自动跳过，观察全量 DOM 变更开销可接受。
     const check = (): void => { setPresent(document.querySelector(CHAT_VIEW_SELECTOR) !== null) }
+    const affectsChat = (node: Node): boolean => node instanceof Element
+      && (node.matches(CHAT_VIEW_SELECTOR) || node.querySelector(CHAT_VIEW_SELECTOR) !== null)
     check()
-    const observer = new MutationObserver(check)
+    const observer = new MutationObserver(records => {
+      if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(affectsChat))) check()
+    })
     observer.observe(document.body, { childList: true, subtree: true })
     return () => { observer.disconnect() }
   }, [])
   return present
+}
+
+function findVisibleQuestion(key: string): HTMLElement | null {
+  const element = findMessageElement(key)
+  return element !== null && element.getClientRects().length > 0 ? element : null
+}
+
+function waitForQuestion(key: string, signal: AbortSignal): Promise<HTMLElement | null> {
+  const existing = findVisibleQuestion(key)
+  if (signal.aborted || existing !== null) return Promise.resolve(signal.aborted ? null : existing)
+  return new Promise(resolve => {
+    const finish = (element: HTMLElement | null): void => {
+      observer.disconnect()
+      clearTimeout(timer)
+      signal.removeEventListener('abort', abort)
+      resolve(element)
+    }
+    const abort = (): void => { finish(null) }
+    const observer = new MutationObserver(() => {
+      const element = findVisibleQuestion(key)
+      if (element !== null) finish(element)
+    })
+    observer.observe(document.querySelector(CHAT_VIEW_SELECTOR) ?? document.body, {
+      childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'],
+    })
+    const timer = setTimeout(abort, 3000)
+    signal.addEventListener('abort', abort, { once: true })
+  })
+}
+
+function useSavedQuestionNavigation(
+  sessionId: string, chatViewPresent: boolean, loadSavedQuestion: TimelineActionProps['loadSavedQuestion'],
+  t: TranslateNS<typeof NS>,
+): void {
+  useEffect(() => {
+    if (!chatViewPresent) return
+    let current: AbortController | undefined
+    const navigate = (): void => {
+      current?.abort()
+      const target = pendingNavigateStore.get()
+      if (target?.sessionId !== sessionId) return
+
+      const controller = new AbortController()
+      current = controller
+      const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30000)])
+      void (async () => {
+        try {
+          const existing = findVisibleQuestion(target.nodeKey)
+          const ready = existing !== null || await loadSavedQuestion(sessionId, target.nodeKey, signal)
+          const element = ready ? await waitForQuestion(target.nodeKey, signal) : null
+          const port = findScrollContainer()
+          if (controller.signal.aborted) return
+          if (port !== null && element !== null && !signal.aborted) smoothScrollTo(port, element)
+          else toast.warning(t('starred.questionUnavailable'))
+        } catch {
+          if (!controller.signal.aborted) toast.warning(t('starred.questionUnavailable'))
+        } finally {
+          if (!controller.signal.aborted && pendingNavigateStore.get() === target) pendingNavigateStore.set(null)
+        }
+      })()
+    }
+    const unsubscribe = pendingNavigateStore.subscribe(navigate)
+    navigate()
+    return () => {
+      unsubscribe()
+      current?.abort()
+    }
+  }, [sessionId, chatViewPresent, loadSavedQuestion, t])
 }
 
 /** 与 user/steering 节点 data 对齐的最小读取形态。 */
@@ -112,12 +185,13 @@ function collectItems(
  * @param props - 槽位运行时 + store + 词典。
  * @returns 开关按钮；开启且有提问时渲染时间轴。
  */
-export function TimelineAction({ sessionId, useChat, useSession, useSessions, useStore, actions, t }: TimelineActionProps) {
+export function TimelineAction({ sessionId, useChat, useSession, useSessions, useStore, actions, loadSavedQuestion, t }: TimelineActionProps) {
   const order = useChat(s => s.order)
   const nodes = useChat(s => s.nodes)
   const running = useSession(s => s.running)
   const collapsed = useStore(s => s.collapsed)
   const chatViewPresent = useChatViewPresent()
+  useSavedQuestionNavigation(sessionId, chatViewPresent, loadSavedQuestion, t)
   const displayTitle = useSessions(s => s.byId[sessionId]?.displayTitle)
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
 
@@ -193,7 +267,7 @@ export function TimelineAction({ sessionId, useChat, useSession, useSessions, us
           e.currentTarget.blur()
         }}
         onMouseEnter={(e) => {
-          tooltip.show('star-chat-btn', e.currentTarget, chatStarLabel, { placement: 'bottom' })
+          tooltip.show('star-chat-btn', e.currentTarget, chatStarLabel, { placement: 'bottom', theme: 'inverse' })
         }}
         onMouseLeave={() => { tooltip.hide() }}
       >

@@ -9,6 +9,7 @@
  * - 超长对话：超过画布上限时截断并提示
  */
 import temml from 'temml'
+import { markdownImages, replaceMarkdownTokens, safeImageSource, splitTableRow } from './markdown.ts'
 import {
   CE_MAX_CANVAS_HEIGHT, ceFormatChatTime, ceFormatLocalTime, ceGetTheme,
   type CeTexts, type ExportJob, type ExportImage, type ExportTheme,
@@ -49,6 +50,7 @@ export type MarkdownBlock =
   | { kind: 'quote'; text: string }
   | { kind: 'code'; lang: string; code: string }
   | { kind: 'formula'; latex: string }
+  | { kind: 'table'; headers: string[]; rows: string[][] }
 
 type InlineToken =
   | { type: 'text'; text: string }
@@ -107,8 +109,11 @@ export class CEPngExporter {
     const measureCtx = measureCanvas.getContext('2d')
     if (measureCtx === null) throw new Error('canvas 2d context unavailable')
 
-    // 预加载图片
-    const imageMap = await this.preloadImages(job.turns.flatMap(t => [...t.user.images, ...t.assistant.images]))
+    // 内联 Markdown 图与附件共用预加载与去重。
+    const inlineImages = new Map(job.turns.map(turn => [turn, this.markdownImageEntries(turn.assistant.markdown)]))
+    const imageMap = await this.preloadImages(job.turns.flatMap(turn => [
+      ...turn.user.images, ...turn.assistant.images, ...(inlineImages.get(turn) ?? []),
+    ]))
 
     // 仅在导出内容实际包含公式时探测公式渲染能力
     const hasFormulas = job.turns.some(turn => this.collectFormulas(turn.assistant.markdown).length > 0)
@@ -119,7 +124,7 @@ export class CEPngExporter {
 
     // 构建绘制操作（含测量高度）
     const headerBlock = this.buildHeader(measureCtx, job)
-    const bodyOps = this.buildBodyOps(measureCtx, job, imageMap, theme)
+    const bodyOps = this.buildBodyOps(measureCtx, job, imageMap, theme, inlineImages)
 
     // 计算高度并处理截断
     const { ops, totalHeight, truncated } = this.layout(headerBlock.height, bodyOps)
@@ -255,6 +260,7 @@ export class CEPngExporter {
     job: ExportJob,
     imageMap: Map<string, LoadedImage>,
     theme: ExportTheme,
+    inlineImages: ReadonlyMap<ExportJob['turns'][number], readonly ExportImage[]>,
   ): PaintOp[] {
     const ops: PaintOp[] = []
 
@@ -264,25 +270,28 @@ export class CEPngExporter {
     job.turns.forEach((turn, index) => {
       if (index > 0) ops.push(this.dividerOp())
 
-      // 提问：首个内容块（气泡）挂上左侧「Q」标记
-      const askTime = job.options.showConversationTime ? ceFormatChatTime(turn.user.time) : ''
-      const userOp = this.userTextOp(ctx, turn.user.text !== '' ? turn.user.text : this.texts.emptyUserPreview, askTime)
-      ops.push(this.withRoleMarker(userOp, this.texts.exportRoleUser, true, theme))
-      for (const image of turn.user.images) {
-        ops.push(this.imageOp(image, imageMap))
+      if (!turn.omitUser) {
+        const askTime = job.options.showConversationTime ? ceFormatChatTime(turn.user.time) : ''
+        const userOp = this.userTextOp(ctx, turn.user.text !== '' ? turn.user.text : this.texts.emptyUserPreview, askTime)
+        ops.push(this.withRoleMarker(userOp, this.texts.exportRoleUser, true, theme))
+        for (const image of turn.user.images) ops.push(this.imageOp(image, imageMap))
       }
-
-      ops.push(this.spacerOp(10))
+      if (turn.omitAssistant) return
+      if (!turn.omitUser) ops.push(this.spacerOp(10))
 
       // 回答：文本块 + 图片
       const assistantOps: PaintOp[] = []
-      const blocks = this.parseMarkdownBlocks(turn.assistant.markdown)
+      const markdown = replaceMarkdownTokens(turn.assistant.markdown, markdownImages(turn.assistant.markdown), image => image.alt)
+      const blocks = this.parseMarkdownBlocks(markdown)
       if (blocks.length > 0) {
         for (const block of blocks) assistantOps.push(this.markdownBlockOp(ctx, block))
       } else if (turn.assistant.text !== '') {
         assistantOps.push(this.paragraphOp(ctx, turn.assistant.text))
       }
-      for (const image of turn.assistant.images) {
+      const used = new Set<string>()
+      for (const image of [...(inlineImages.get(turn) ?? []), ...turn.assistant.images]) {
+        if (image.src !== '' && used.has(image.src)) continue
+        if (image.src !== '') used.add(image.src)
         assistantOps.push(this.imageOp(image, imageMap))
       }
       // 文本与图片都没有时才显示占位提示
@@ -294,6 +303,18 @@ export class CEPngExporter {
     })
 
     return ops
+  }
+
+  private markdownImageEntries(markdown: string): ExportImage[] {
+    return markdownImages(markdown).map(image => ({
+      role: 'assistant',
+      src: safeImageSource(image.src),
+      alt: image.alt,
+      width: null,
+      height: null,
+      fileId: null,
+      unrendered: false,
+    }))
   }
 
   private spacerOp(height: number): PaintOp {
@@ -416,6 +437,7 @@ export class CEPngExporter {
     indent?: number
     marker?: string | null
     markerDx?: number
+    maxWidth?: number
     topPad?: number
     bottomPad?: number
     quoteBar?: boolean
@@ -430,7 +452,7 @@ export class CEPngExporter {
     const bottomPad = opts.bottomPad ?? 6
     const quoteBar = opts.quoteBar === true
 
-    const maxWidth = this.bodyWidth - indent
+    const maxWidth = opts.maxWidth ?? this.bodyWidth - indent
     const tokens = this.tokenizeInline(rawText)
     const hasFormula = tokens.some(t => t.type === 'formula')
 
@@ -557,7 +579,49 @@ export class CEPngExporter {
       case 'quote': return this.quoteOp(ctx, block)
       case 'code': return this.codeOp(ctx, block)
       case 'formula': return this.formulaBlockOp(ctx, block)
+      case 'table': return this.tableOp(ctx, block)
       default: return this.paragraphOp(ctx, block.text)
+    }
+  }
+
+  private tableOp(ctx: CanvasRenderingContext2D, block: Extract<MarkdownBlock, { kind: 'table' }>): PaintOp {
+    const width = this.bodyWidth / block.headers.length
+    const padding = Math.min(8, width / 4)
+    const rows = [block.headers, ...block.rows].map((row, rowIndex) => {
+      const cells = block.headers.map((_, column) => this.richTextOp(ctx, row[column] ?? '', {
+        font: { size: 14, weight: rowIndex === 0 ? '600' : '400' },
+        indent: column * width + padding,
+        maxWidth: Math.max(1, width - padding * 2),
+        topPad: 8,
+        bottomPad: 8,
+      }))
+      return { cells, height: Math.max(38, ...cells.map(cell => cell.height)) }
+    })
+    return {
+      height: 12 + rows.reduce((total, row) => total + row.height, 0),
+      markerCenter: 23,
+      paint: (c, y) => {
+        let top = y + 4
+        rows.forEach((row, index) => {
+          if (index === 0) {
+            c.fillStyle = this.colors.codeBg
+            c.fillRect(this.contentX, top, this.bodyWidth, row.height)
+          }
+          row.cells.forEach((cell, column) => {
+            const left = this.contentX + column * width
+            c.strokeStyle = this.colors.divider
+            c.lineWidth = 1
+            c.strokeRect(left, top, width, row.height)
+            c.save()
+            c.beginPath()
+            c.rect(left, top, width, row.height)
+            c.clip()
+            cell.paint(c, top)
+            c.restore()
+          })
+          top += row.height
+        })
+      },
     }
   }
 
@@ -832,6 +896,22 @@ export class CEPngExporter {
         continue
       }
 
+      if (trimmed.includes('|') && i + 1 < lines.length) {
+        const headers = splitTableRow(trimmed)
+        const separator = splitTableRow(lines[i + 1])
+        if (headers.length > 0 && headers.length === separator.length && separator.every(cell => /^:?-{3,}:?$/.test(cell))) {
+          flushParagraph()
+          const rows: string[][] = []
+          i += 2
+          while (i < lines.length && lines[i].includes('|') && !/^\s*(?:```|~~~)/.test(lines[i])) {
+            rows.push(splitTableRow(lines[i]))
+            i++
+          }
+          blocks.push({ kind: 'table', headers, rows })
+          continue
+        }
+      }
+
       // 普通段落（累积连续行）
       paragraph.push(trimmed)
       i++
@@ -983,7 +1063,7 @@ export class CEPngExporter {
       mathml = temml.renderToString(latex, {
         displayMode,
         annotate: false,
-        throwOnError: false,
+        throwOnError: true,
         trust: false,
       })
     } catch {

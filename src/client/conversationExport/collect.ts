@@ -6,6 +6,7 @@
  */
 import type { ChatNodeStore } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ExportImage, ExportTurn } from './constants.ts'
+import { fencedCodeSpans, inlineCodeSpans, splitTableRow } from './markdown.ts'
 
 /** 一次 readAttachment 解析结果的最小形态。 */
 export interface ResolvedAttachment {
@@ -40,6 +41,7 @@ interface UserLikeData {
 }
 
 interface AssistantLikeData {
+  readonly finalNode?: { readonly messageId?: string }
   readonly blocks?: readonly {
     readonly kind?: string
     readonly text?: string
@@ -53,7 +55,9 @@ interface AssistantLikeData {
 }
 
 interface MutableTurn {
-  order: number
+  userKey: string
+  includeUser: boolean
+  assistantMessages: { key: string; messageId?: string; text: string }[]
   userText: string
   userTime: number
   userImages: ExportImage[]
@@ -65,6 +69,8 @@ interface MutableTurn {
 export interface CollectOptions {
   readonly onProgress?: (count: number) => void
   readonly shouldCancel?: () => boolean
+  readonly selectedKeys?: ReadonlySet<string>
+  readonly imageEncoding?: 'data' | 'blob'
 }
 
 function userBlockText(block: unknown): string {
@@ -83,25 +89,29 @@ function userBlockText(block: unknown): string {
 export async function collectAllTurns(
   chatOrder: readonly string[],
   nodes: ChatNodeStore,
-  resolveAttachment: AttachmentResolver,
+  resolveAttachment: AttachmentResolver | null,
   options: CollectOptions = {},
 ): Promise<ExportTurn[]> {
   const mutables: MutableTurn[] = []
   let current: MutableTurn | null = null
+  const includes = (key: string): boolean => options.selectedKeys?.has(key) ?? true
   const pendingImages: { image: ExportImage; attachmentId: string; assign: (img: ExportImage) => void }[] = []
 
   for (const key of chatOrder) {
     const node = nodes.get(key)
-    if (node === undefined) continue
+    if (node === undefined || node.visibility === 'hidden') continue
 
     if (USER_KINDS.has(node.kind)) {
       const data = node.data as UserLikeData
-      const content = data.content ?? []
+      const includeUser = includes(key)
+      const content = includeUser ? (data.content ?? []) : []
       const text = content.map(userBlockText).filter(t => t !== '').join('\n\n').trim()
       current = {
-        order: mutables.length + 1,
+        userKey: key,
+        includeUser,
+        assistantMessages: [],
         userText: text,
-        userTime: data.time ?? 0,
+        userTime: includeUser ? (data.time ?? 0) : 0,
         userImages: [],
         assistantParts: [],
         assistantImages: [],
@@ -123,7 +133,7 @@ export async function collectAllTurns(
           const turn = current
           const index = turn.userImages.length
           turn.userImages.push(image)
-          pendingImages.push({
+          if (resolveAttachment !== null) pendingImages.push({
             image,
             attachmentId: b.attachment.attachmentId,
             assign: (img) => { turn.userImages[index] = img },
@@ -136,11 +146,27 @@ export async function collectAllTurns(
 
     // 助手内容挂在 'assistant-step' 节点（AssistantChatData.blocks），
     // 'assistant' 只是 legacy 投影（finalNode）里的 kind，Chat 视图节点没有它。
-    if (node.kind === 'assistant-step' && current !== null) {
+    if (node.kind === 'assistant-step' && includes(key)) {
+      // A paginated window may begin with an answer whose question is on an older page.
+      if (current === null) {
+        current = {
+          userKey: '',
+          includeUser: false,
+          assistantMessages: [],
+          userText: '',
+          userTime: 0,
+          userImages: [],
+          assistantParts: [],
+          assistantImages: [],
+        }
+        mutables.push(current)
+      }
       const data = node.data as AssistantLikeData
+      const texts: string[] = []
+      const imageStart = current.assistantImages.length
       for (const block of data.blocks ?? []) {
         if (block.kind === 'text' && typeof block.text === 'string' && block.text.trim() !== '') {
-          current.assistantParts.push(block.text)
+          texts.push(block.text)
         } else if (block.kind === 'image' && block.attachment?.attachmentId !== undefined) {
           const image: ExportImage = {
             role: 'assistant',
@@ -154,51 +180,94 @@ export async function collectAllTurns(
           const turn = current
           const index = turn.assistantImages.length
           turn.assistantImages.push(image)
-          pendingImages.push({
+          if (resolveAttachment !== null) pendingImages.push({
             image,
             attachmentId: block.attachment.attachmentId,
             assign: (img) => { turn.assistantImages[index] = img },
           })
         }
       }
+      if (texts.length > 0 || current.assistantImages.length > imageStart) {
+        const text = texts.join('\n\n')
+        current.assistantMessages.push({ key, messageId: data.finalNode?.messageId, text: markdownToPlainText(text) })
+        if (text !== '') current.assistantParts.push(text)
+      }
     }
   }
 
   // 解析图片为 blob URL（原 SCROLL 策略在此处等待 DOM 渲染，这里等待字节解析）。
-  await Promise.all(pendingImages.map(async ({ image, attachmentId, assign }) => {
-    if (options.shouldCancel?.() === true) return
-    try {
-      const resolved = await resolveAttachment(attachmentId)
-      if (resolved === null) return
-      const blob = new Blob([resolved.data as BlobPart], { type: resolved.mediaType })
-      assign({
-        ...image,
-        src: URL.createObjectURL(blob),
-        width: resolved.width,
-        height: resolved.height,
-        unrendered: false,
-      })
-    } catch { /* 解析失败保持 unrendered */ }
-  }))
+  if (resolveAttachment !== null) {
+    const pending = pendingImages.values()
+    async function resolveImages(resolve: AttachmentResolver): Promise<void> {
+      for (const { image, attachmentId, assign } of pending) {
+        if (options.shouldCancel?.() === true) break
+        try {
+          const resolved = await resolve(attachmentId)
+          if (resolved === null || options.shouldCancel?.() === true) continue
+          const blob = new Blob([resolved.data as BlobPart], { type: resolved.mediaType })
+          const src = options.imageEncoding === 'data'
+            ? await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onload = () => { resolve(String(reader.result)) }
+                reader.onerror = () => { reject(reader.error) }
+                reader.readAsDataURL(blob)
+              })
+            : URL.createObjectURL(blob)
+          if (options.shouldCancel?.() === true) {
+            if (src.startsWith('blob:')) URL.revokeObjectURL(src)
+            break
+          }
+          assign({
+            ...image,
+            src,
+            width: resolved.width,
+            height: resolved.height,
+            unrendered: false,
+          })
+        } catch { /* 解析失败保持 unrendered */ }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(6, pendingImages.length) }, () => resolveImages(resolveAttachment)))
+  }
 
-  if (options.shouldCancel?.() === true) return []
+  if (options.shouldCancel?.() === true) {
+    for (const turn of mutables) {
+      revokeImageUrls([...turn.userImages, ...turn.assistantImages])
+    }
+    return []
+  }
 
   const turns: ExportTurn[] = []
   for (const m of mutables) {
     // 过滤过小的装饰图（原 CE_MIN_IMAGE_SIZE：任一边 <48 且尺寸已知时跳过）。
     const userImages = m.userImages.filter(img => !isDecorativeImage(img))
     const assistantImages = m.assistantImages.filter(img => !isDecorativeImage(img))
+    revokeImageUrls([...m.userImages, ...m.assistantImages].filter(isDecorativeImage))
     const markdown = normalizeMathDelimiters(m.assistantParts.join('\n\n')).trim()
     const text = markdownToPlainText(markdown)
     // 全空轮丢弃（原 extractTurn：文本与图片四者全空时返回 null），序号保持连续。
-    if (m.userText === '' && userImages.length === 0 && text === '' && assistantImages.length === 0) continue
+    if (m.userText === '' && userImages.length === 0 && markdown === '' && assistantImages.length === 0) continue
     turns.push({
       order: turns.length + 1,
+      userKey: m.userKey,
+      assistantMessages: m.assistantMessages,
+      omitUser: !m.includeUser,
+      omitAssistant: options.selectedKeys !== undefined && m.assistantMessages.length === 0,
       user: { text: m.userText, time: m.userTime, images: userImages },
       assistant: { markdown, text, images: assistantImages },
     })
   }
   return turns
+}
+
+function revokeImageUrls(images: readonly ExportImage[]): void {
+  for (const image of images) {
+    if (image.src.startsWith('blob:')) URL.revokeObjectURL(image.src)
+  }
+}
+
+export function releaseExportImages(turns: readonly ExportTurn[]): void {
+  for (const turn of turns) revokeImageUrls([...turn.user.images, ...turn.assistant.images])
 }
 
 /** 过小的装饰图判定（原 _extractImageInfo：尺寸未知时保留）。 */
@@ -216,17 +285,28 @@ function isDecorativeImage(img: ExportImage): boolean {
  * （PNG 的块解析 / PDF / Markdown）只识别 $ 系；代码围栏内不做替换。
  */
 export function normalizeMathDelimiters(markdown: string): string {
-  // 以代码围栏为界切分（捕获组保留围栏段，奇数下标即围栏），仅在非代码段替换。
-  const segments = markdown.split(/(```[^\n]*\n[\s\S]*?(?:\n```|$))/g)
-  return segments.map((segment, index) => {
-    if (index % 2 === 1) return segment
-    return segment
-      // 块级公式：\[...\] 与单行/跨行 $$...$$ 统一为独占行围栏（幂等）
-      .replace(/\\\[([\s\S]*?)\\\]/g, (_, tex: string) => `\n\n$$\n${tex.trim()}\n$$\n\n`)
-      .replace(/\$\$([\s\S]+?)\$\$/g, (_, tex: string) => `\n\n$$\n${tex.trim()}\n$$\n\n`)
-      // 行内公式：\(...\) → $...$
-      .replace(/\\\((.*?)\\\)/g, (_, tex: string) => `$${tex.trim()}$`)
-  }).join('')
+  const normalize = (text: string): string => text
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_, tex: string) => `\n\n$$\n${tex.trim()}\n$$\n\n`)
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_, tex: string) => `\n\n$$\n${tex.trim()}\n$$\n\n`)
+    .replace(/\\\((.*?)\\\)/g, (_, tex: string) => `$${tex.trim()}$`)
+  const normalizeText = (segment: string): string => {
+    let cursor = 0
+    const parts: string[] = []
+    for (const code of inlineCodeSpans(segment)) {
+      parts.push(normalize(segment.slice(cursor, code.start)), segment.slice(code.start, code.end))
+      cursor = code.end
+    }
+    parts.push(normalize(segment.slice(cursor)))
+    return parts.join('')
+  }
+  let cursor = 0
+  const parts: string[] = []
+  for (const fence of fencedCodeSpans(markdown)) {
+    parts.push(normalizeText(markdown.slice(cursor, fence.start)), markdown.slice(fence.start, fence.end))
+    cursor = fence.end
+  }
+  parts.push(normalizeText(markdown.slice(cursor)))
+  return parts.join('')
 }
 
 /**
@@ -249,7 +329,7 @@ export function markdownToPlainText(markdown: string): string {
     const trimmed = line.trim()
     if (trimmed.startsWith('|') && /^\|?[\s:|-]+$/.test(trimmed)) return []
     if (trimmed.startsWith('|')) {
-      return [trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim()).join('\t')]
+      return [splitTableRow(trimmed).join('\t')]
     }
     return [line]
   }).join('\n')

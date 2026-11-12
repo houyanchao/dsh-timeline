@@ -52,11 +52,8 @@ class SmartEnterManager {
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null
   private observer: MutationObserver | null = null
 
-  /** 已附加元素及其处理器（原 attachedElements WeakMap）。 */
-  private readonly attached = new WeakMap<HTMLTextAreaElement, {
-    keydown: (e: KeyboardEvent) => void
-    input: () => void
-  }>()
+  private input: HTMLTextAreaElement | null = null
+  private inputListeners: AbortController | null = null
 
   constructor(getToastText: ToastText) {
     this.getToastText = getToastText
@@ -66,7 +63,7 @@ class SmartEnterManager {
     this.attachIfNeeded()
     // DOM 监听（原 _startObserving：body 子树变化防抖后重试附加）。
     this.observer = new MutationObserver((mutations) => {
-      if (!mutations.some(m => m.addedNodes.length > 0)) return
+      if (!mutations.some(m => m.addedNodes.length > 0 || m.removedNodes.length > 0)) return
       if (this.debounceTimer !== null) clearTimeout(this.debounceTimer)
       this.debounceTimer = setTimeout(() => {
         this.debounceTimer = null
@@ -82,33 +79,28 @@ class SmartEnterManager {
     this.observer?.disconnect()
     this.observer = null
     if (this.healthCheckInterval !== null) { clearInterval(this.healthCheckInterval); this.healthCheckInterval = null }
-    const input = document.querySelector<HTMLTextAreaElement>(INPUT_SELECTOR)
-    if (input !== null) this.detachListener(input)
+    this.inputListeners?.abort()
+    this.inputListeners = null
+    this.input = null
     this.resetState()
   }
 
   private attachIfNeeded(): void {
     const input = document.querySelector<HTMLTextAreaElement>(INPUT_SELECTOR)
-    if (input !== null && !this.attached.has(input)) this.attachListener(input)
+    if (input === this.input) return
+    this.inputListeners?.abort()
+    this.inputListeners = null
+    this.input = input
+    this.resetState()
+    if (input === null) return
+
+    const controller = new AbortController()
+    this.inputListeners = controller
+    const { signal } = controller
+    input.addEventListener('keydown', event => this.handleKeyDown(input, event), { capture: true, signal })
+    input.addEventListener('input', () => this.handleInput(), { signal })
   }
 
-  private attachListener(input: HTMLTextAreaElement): void {
-    const keydown = (e: KeyboardEvent): void => { this.handleKeyDown(input, e) }
-    const inputHandler = (): void => { this.handleInput() }
-    input.addEventListener('keydown', keydown, { capture: true })
-    input.addEventListener('input', inputHandler)
-    this.attached.set(input, { keydown, input: inputHandler })
-  }
-
-  private detachListener(input: HTMLTextAreaElement): void {
-    const handlers = this.attached.get(input)
-    if (handlers === undefined) return
-    input.removeEventListener('keydown', handlers.keydown, { capture: true })
-    input.removeEventListener('input', handlers.input)
-    this.attached.delete(input)
-  }
-
-  /** input 事件：监听窗口期内内容变化则取消当前 Enter 处理（原 _handleInput）。 */
   private handleInput(): void {
     if (this.newlineTimer !== null) {
       clearTimeout(this.newlineTimer)
@@ -118,12 +110,21 @@ class SmartEnterManager {
   }
 
   private handleKeyDown(input: HTMLTextAreaElement, e: KeyboardEvent): void {
-    if (e.key !== 'Enter') return
+    if (e.isComposing || e.keyCode === 229) {
+      this.resetState()
+      return
+    }
+
     // 我们重放的合成 Enter（用于发送）放行。
-    if (this.allowNextEnter) return
+    if (e.key !== 'Enter' || this.allowNextEnter) return
 
     const settings = settingsStore.get()
     if (!settings.smartEnterEnabled) return
+    if (e.repeat) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
 
     const mode = settings.smartEnterMode
     if (mode === 'doubleEnter') this.handleDoubleEnterMode(input, e)
@@ -243,15 +244,18 @@ class SmartEnterManager {
     if (document.activeElement !== input) input.focus()
 
     this.allowNextEnter = true
-    input.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Enter',
-      code: 'Enter',
-      keyCode: 13,
-      which: 13,
-      bubbles: true,
-      cancelable: true,
-    }))
-    setTimeout(() => { this.allowNextEnter = false }, 50)
+    try {
+      input.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true,
+      }))
+    } finally {
+      this.allowNextEnter = false
+    }
   }
 
   private resetState(): void {

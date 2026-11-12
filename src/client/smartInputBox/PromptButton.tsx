@@ -18,6 +18,7 @@ import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { settingsStore } from '../shared/settings.ts'
 import { usePreventAutoScroll } from '../shared/preventAutoScroll.ts'
 import { tooltip } from '../ui/tooltip.tsx'
+import { SettingsIcon } from '../ui/SettingsIcon.tsx'
 import { panelModal } from '../panelModal/bus.ts'
 import { UpdateLogoButton } from '../changelog/ChangelogModal.tsx'
 import { promptsStore, sortPrompts, type Prompt } from './storage.ts'
@@ -353,10 +354,7 @@ function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, on
                 }}
                 onMouseLeave={() => { tooltip.hideOverlay() }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M9.67 4.14a2.34 2.34 0 0 1 4.66 0 2.34 2.34 0 0 0 3.32 1.91 2.34 2.34 0 0 1 2.33 4.04 2.34 2.34 0 0 0 0 3.82 2.34 2.34 0 0 1-2.33 4.04 2.34 2.34 0 0 0-3.32 1.91 2.34 2.34 0 0 1-4.66 0 2.34 2.34 0 0 0-3.32-1.91 2.34 2.34 0 0 1-2.33-4.04 2.34 2.34 0 0 0 0-3.82 2.34 2.34 0 0 1 2.33-4.04 2.34 2.34 0 0 0 3.32-1.91Z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
+                <SettingsIcon strokeWidth={2.2} />
               </span>
             </button>
           </div>

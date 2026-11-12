@@ -1,10 +1,11 @@
 /**
  * 闪记数据层：移植原扩展 NotepadManager 的存储部分
  * （chrome.storage.local aitNotepadNotes / aitNotepadState → localStorage）。
- * - 笔记数组 [{id, content, updatedAt}]，上限 50 条（超出淘汰最旧）；
+ * - 笔记数组 [{id, content, updatedAt}]；
  * - 面板几何（右下角锚定 right/bottom + 宽高）单独持久化；
  * - storage 事件跨标签页同步（等价原 chrome.storage.onChanged）。
  */
+import { registerStorageSync } from '../shared/storageSync.ts'
 import { Bus } from '../ui/bus.ts'
 
 /** 笔记（原 aitNotepadNotes 数组元素）。 */
@@ -20,8 +21,6 @@ export interface NotepadGeometry {
   readonly size: { readonly width: number; readonly height: number }
 }
 
-/** 笔记数上限（原 MAX_NOTES）。 */
-export const MAX_NOTES = 50
 /** 默认/最小尺寸（原常量）。 */
 export const DEFAULT_WIDTH = 260
 export const DEFAULT_HEIGHT = 370
@@ -49,11 +48,7 @@ function saveNotes(next: readonly Note[]): void {
   try { localStorage.setItem(NOTES_KEY, JSON.stringify(next)) } catch { /* 存储满时忽略 */ }
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === NOTES_KEY) notesBus.set(loadNotes())
-  })
-}
+registerStorageSync(NOTES_KEY, () => { notesBus.set(loadNotes()) })
 
 /** 生成笔记 id（原 createNote 的 id 生成）。 */
 function newNoteId(): string {
@@ -69,13 +64,9 @@ export const notesStore = {
     return notesBus.get().find(n => n.id === id)
   },
 
-  /** 新建空笔记（超上限时淘汰最旧一条）。 */
+  /** 新建空笔记。 */
   create(): Note {
-    let list = notesBus.get()
-    if (list.length >= MAX_NOTES) {
-      const sorted = [...list].sort((a, b) => a.updatedAt - b.updatedAt)
-      list = list.filter(n => n.id !== sorted[0].id)
-    }
+    const list = notesBus.get()
     const note: Note = { id: newNoteId(), content: '', updatedAt: Date.now() }
     saveNotes([...list, note])
     return note

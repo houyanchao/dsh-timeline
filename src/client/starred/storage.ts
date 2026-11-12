@@ -8,6 +8,7 @@
  * - 模块级单例 + Bus 订阅（React 组件 useSyncExternalStore 接入），
  *   storage 事件实现跨标签页同步（等价原 chrome.storage.onChanged）。
  */
+import { registerStorageSync } from '../shared/storageSync.ts'
 import { Bus } from '../ui/bus.ts'
 
 /** 收藏类型：整会话 / 会话内节点 / 闪记笔记。 */
@@ -101,11 +102,7 @@ function save(next: StarredState): void {
 }
 
 // 跨标签页同步（等价原 chrome.storage.onChanged）。
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY) bus.set(load())
-  })
-}
+registerStorageSync(STORAGE_KEY, () => { bus.set(load()) })
 
 /** 生成文件夹 id（原 `folder_${Date.now()}_${random}`）。 */
 function newFolderId(): string {
@@ -442,11 +439,7 @@ function savePins(next: readonly PinItem[]): void {
   try { localStorage.setItem(PINS_KEY, JSON.stringify(next)) } catch { /* 忽略 */ }
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === PINS_KEY) pinsBus.set(loadPins())
-  })
-}
+registerStorageSync(PINS_KEY, () => { pinsBus.set(loadPins()) })
 
 /** 图钉存储 API（等价原 PinStorageManager）。 */
 export const pinsStore = {
@@ -482,11 +475,5 @@ export const pendingNavigateStore = {
   subscribe: navBus.subscribe,
   get: (): PendingNavigate | null => navBus.get(),
   set(target: PendingNavigate | null): void { navBus.set(target) },
-  /** 消费并清除（匹配 sessionId 时返回 nodeKey）。 */
-  consume(sessionId: string): string | null {
-    const cur = navBus.get()
-    if (cur === null || cur.sessionId !== sessionId) return null
-    navBus.set(null)
-    return cur.nodeKey
-  },
+
 }

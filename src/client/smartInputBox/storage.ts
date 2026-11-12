@@ -3,6 +3,7 @@
  * （panelModal prompt tab 与提示词按钮共用）。
  * localStorage + Bus + storage 事件跨标签页同步。
  */
+import { registerStorageSync } from '../shared/storageSync.ts'
 import { Bus } from '../ui/bus.ts'
 
 /** 提示词（原 prompts 数组元素；DSH 单平台，platformId 字段不再需要）。 */
@@ -33,11 +34,7 @@ function save(next: readonly Prompt[]): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* 存储满时忽略 */ }
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY) bus.set(load())
-  })
-}
+registerStorageSync(STORAGE_KEY, () => { bus.set(load()) })
 
 /** 提示词存储 API（原 panelModal prompt tab 的 CRUD 面）。 */
 export const promptsStore = {

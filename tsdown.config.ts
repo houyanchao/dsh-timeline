@@ -9,9 +9,11 @@
  */
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { basename, dirname, resolve as resolvePath } from 'node:path'
 import type { UserConfig } from 'tsdown'
-import { transform } from 'lightningcss'
+// tsdown can evaluate this config from a temporary cache outside the project.
+const { transform } = createRequire(import.meta.url)('lightningcss') as typeof import('lightningcss')
 
 // 必须与 package.json 的 name 一致：浏览器端按包名匹配 __ModuleLoader__ 注册 id。
 const PLUGIN_ID = 'dsh-timeline'
@@ -100,6 +102,7 @@ const client: UserConfig = {
   }],
   outputOptions: {
     entryFileNames: 'client.js',
+    codeSplitting: false,
     banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(PLUGIN_ID)}, factory: (require) => {`,
     footer: 'return module.exports; } });',
     intro: 'var module = { exports: {} }; var exports = module.exports;',

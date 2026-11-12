@@ -1276,6 +1276,16 @@ function ExportTab({ t }: { readonly t: T }) {
             />
           )}
         />
+        <SettingItem
+          label={t('export.screenshot')}
+          hint={t('export.screenshotHint')}
+          control={(
+            <Toggle
+              checked={settings.messageScreenshotEnabled}
+              onChange={enabled => { settingsStore.set({ messageScreenshotEnabled: enabled }) }}
+            />
+          )}
+        />
       </div>
     </div>
   )

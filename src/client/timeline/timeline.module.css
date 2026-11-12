@@ -79,14 +79,10 @@
   transform: translateX(20px);
 }
 
-/* ==== 让位：本插件时间轴在场时隐藏宿主的轮次导航栏（ui-chat TurnNavigator）
-   两条轴共用正文右沟槽，同时出现会叠在一起。宿主那块既无开关也无稳定 class
-   （CSS Modules 类名带随宿主版本变的 hash），只能按结构认：消息列
-   [data-chat-flow] 紧邻的前一个、包着 <nav> 的零高 sticky 槽位。
-   条件挂在 body 上——时间轴 portal 到 body 下，总开关关掉或对话视图不在场时
-   wrapper 不挂载，规则随之失效（折叠只是透明，仍算在场，不放原生轴回来）。
-   宿主改动这段结构时规则静默不匹配，原生轴回归，不会报错。 ==== */
-:global(body:has([data-dsh-tl-wrapper])) :global(div:has(> nav):has(+ [data-chat-flow])) {
+/* 插件轨道可见时隐藏宿主 TurnNavigator。虚拟列表版移除了内联变量，
+   用轨道 frame → scroller → marks 的 CSS Modules 局部类名识别。 */
+:global(body:has([data-dsh-tl-rail-visible]) nav[style*='--turn-rail-inset:']),
+:global(body:has([data-dsh-tl-rail-visible]) nav[aria-label][class$='_frame']:has(> div[class*='_scroller'] > div[class$='_marks'])) {
   display: none;
 }
 
@@ -330,6 +326,36 @@
   box-shadow: none;
 }
 
+.barCompact .dot {
+  height: min(var(--tl-hit-size), var(--tl-node-gap));
+}
+
+.barCompact .pinMarker {
+  width: var(--tl-marker-size);
+  height: var(--tl-marker-size);
+}
+
+.barCompact .dotStarred::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: calc(6px + var(--tl-compact-line-width));
+  left: auto;
+  width: var(--tl-marker-size);
+  height: var(--tl-marker-size);
+  border-radius: 0;
+  background: var(--tl-star-color);
+  clip-path: polygon(50% 0, 64% 35%, 100% 38%, 73% 62%, 81% 100%, 50% 80%, 19% 100%, 27% 62%, 0 38%, 36% 35%);
+  transform: translateY(-50%);
+  pointer-events: none;
+  display: block;
+  z-index: 2;
+}
+
+.barCompact .dotStarred:hover::before {
+  right: calc(6px + var(--tl-compact-line-hover-width));
+}
+
 .barCompact .dot::after {
   border-radius: 0;
   width: var(--tl-compact-line-width);
@@ -362,28 +388,6 @@
 .barCompact .dotActive:not(.dotStarred)::before {
   content: none;
   display: none;
-}
-
-.barCompact .dotStarred.dotActive::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 4px;
-  left: auto;
-  width: 9px;
-  height: var(--tl-compact-line-height);
-  border-radius: 0;
-  background: var(--tl-star-color);
-  clip-path: none;
-  transform: translate(-100%, -50%);
-  transition: width 0.16s ease, filter 0.15s ease;
-  pointer-events: none;
-  z-index: 2;
-  display: block;
-}
-
-.barCompact .dotStarred.dotActive:hover::before {
-  width: 12px;
 }
 
 .barCompact .dot:not(.dotActive):not(.dotStarred):hover::after,
@@ -1175,7 +1179,7 @@
 }
 
 /* ==== 会话头部开关按钮（DSH 头部入口，保持简洁风格） ==== */
-/* 会话头部的收藏按钮：图标 + 文字，字号/间距对齐旁边的导出按钮（export.module.css 的 .exportBtn）。 */
+/* 会话头部的收藏和导出按钮共用图标加文字样式。 */
 .headerBtn {
   display: inline-flex;
   align-items: center;
@@ -1200,13 +1204,4 @@
 
 .headerBtn:hover {
   background: var(--dsw-alias-interactive-bg-hover);
-}
-
-/* ==== 宿主轮次导航（ui-chat TurnNavigator） ====
-   与插件时间轴功能重叠，插件时间轴开启时盖掉。开关属性由
-   shared/officialRail.ts 跟随 timelineEnabled 打在 html 上。
-   选择器只用稳定契约：轨道槽位是消息流列 [data-chat-flow] 的前一个兄弟，
-   槽位内是带 aria-label 的 <nav>；不引用宿主哈希类名。 */
-:global(html[data-dsh-tl-hide-rail] div:has(+ [data-chat-flow]) > nav[aria-label]) {
-  display: none;
 }

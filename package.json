@@ -101,6 +101,7 @@
     "lib/client.js",
     "lib/client.js.map",
     "lib/types/**/*.d.ts",
+    "src/client/conversationExport/vendor/LICENSE",
     "cordis.patch.yml"
   ],
   "dependencies": {

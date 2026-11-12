@@ -4,7 +4,7 @@
  * - 点击复制：LaTeX（按用户所选格式包装）/ MathML / MathML（Word 版），
  *   多个可选项时弹下拉菜单（虚拟 trigger 居中于公式上方）；
  * - 复制反馈走全局 toast；开关变化即时生效（settingsStore 订阅）；
- * - 原 DOMObserverManager 的 节流+防抖（各 2s）扫描策略以 MutationObserver 复刻；
+ * - 首次扫描后用 MutationObserver 增量识别新增公式；
  * - 原 url:change 清理标记 → 会话切换时清理。
  */
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -20,10 +20,6 @@ import uiCss from '../ui/ui.module.css'
 import css from './formula.module.css'
 
 type T = TranslateNS<typeof NS>
-
-/** 扫描节流/防抖间隔（原 subscribeBody 的 throttle/debounce 2000ms）。 */
-const SCAN_THROTTLE = 2000
-const SCAN_DEBOUNCE = 2000
 
 /** tooltip 隐藏延迟（原 tooltip-manager formula 类型 hideDelay: 200，allowHover）。 */
 const TOOLTIP_HIDE_DELAY = 200
@@ -54,7 +50,7 @@ class FormulaEngine {
   private readonly host: EngineHost
 
   private observer: MutationObserver | null = null
-  private lastScanAt = 0
+  private pendingFormulas = new Set<HTMLElement>()
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
   private running = false
 
@@ -75,6 +71,7 @@ class FormulaEngine {
     this.running = false
     this.observer?.disconnect()
     this.observer = null
+    this.pendingFormulas.clear()
     if (this.debounceTimer !== null) { clearTimeout(this.debounceTimer); this.debounceTimer = null }
     this.cleanupFormulaMarkers()
   }
@@ -87,6 +84,7 @@ class FormulaEngine {
   /** 会话切换时清理交互标记（原 url:change 的 _handleUrlChange）。 */
   handleNavigate(): void {
     this.cleanupFormulaMarkers()
+    this.scanAndAttachFormulas()
   }
 
   /** 主题变化时同步全部已附加公式的深色标记（原版走全局 CSS 选择器即时生效）。 */
@@ -105,32 +103,36 @@ class FormulaEngine {
   }
 
   /**
-   * 监听新增公式：节流（持续变化每 2s 扫一次）+ 防抖（变化结束后 2s 兜底），
-   * 复刻原 DOMObserverManager.subscribeBody 的策略。
+   * 监听新增公式，只检查新增子树并合并同批更新。
    */
   private observeNewFormulas(): void {
     if (this.observer !== null) return
+    const selector = '.katex:not([data-latex-source])'
     this.observer = new MutationObserver((mutations) => {
-      if (!mutations.some(m => m.addedNodes.length > 0)) return
-      this.scheduleScan()
+      for (const mutation of mutations) {
+        const parent = mutation.target instanceof Element ? mutation.target.closest<HTMLElement>(selector) : null
+        if (parent !== null) this.pendingFormulas.add(parent)
+        for (const node of mutation.addedNodes) {
+          if (!(node instanceof HTMLElement)) continue
+          if (node.matches(selector)) this.pendingFormulas.add(node)
+          node.querySelectorAll<HTMLElement>(selector).forEach(formula => this.pendingFormulas.add(formula))
+        }
+      }
+      if (this.pendingFormulas.size > 0 && this.debounceTimer === null) {
+        this.debounceTimer = setTimeout(() => {
+          this.debounceTimer = null
+          const pending = this.pendingFormulas
+          this.pendingFormulas = new Set()
+          if (!this.running) return
+          for (const formula of pending) {
+            if (formula.isConnected) this.attachFormulaListeners(formula)
+          }
+        }, 150)
+      }
     })
-    this.observer.observe(document.body, { childList: true, subtree: true })
-  }
-
-  private scheduleScan(): void {
-    const now = Date.now()
-    // 节流：leading 触发，间隔内的变化直接丢弃（原 DOMObserverManager 语义），由防抖兜底。
-    if (now - this.lastScanAt >= SCAN_THROTTLE) {
-      this.lastScanAt = now
-      this.scanAndAttachFormulas()
-    }
-    // 防抖：变化结束后兜底扫描（执行时同步刷新节流时间戳，原版一致）。
-    if (this.debounceTimer !== null) clearTimeout(this.debounceTimer)
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null
-      this.lastScanAt = Date.now()
-      this.scanAndAttachFormulas()
-    }, SCAN_DEBOUNCE)
+    this.observer.observe(document.body, {
+      childList: true, subtree: true, attributes: true, attributeFilter: ['data-math', 'data-latex'],
+    })
   }
 
   /** 为公式元素附加交互（原 attachFormulaListeners）。 */

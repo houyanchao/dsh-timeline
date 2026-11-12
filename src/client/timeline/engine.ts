@@ -71,6 +71,8 @@ export function applyMinGap(positions: readonly number[], minTop: number, maxTop
 export interface TimelineGeometry {
   readonly contentHeight: number
   readonly compact: boolean
+  readonly gap: number
+  readonly yPositions: readonly number[]
   readonly dotNs: readonly number[]
 }
 
@@ -109,20 +111,22 @@ export function computeGeometry(
 
   let contentHeight: number
   let adjusted: number[]
+  let gap: number
 
   if (compact) {
     contentHeight = H
     const defaultGap = LAYOUT.COMPACT_GAP
     const usableH = Math.max(1, H - 2 * pad)
     const requiredHeight = Math.max(0, N - 1) * defaultGap
-    const actualGap = (N <= 1)
+    gap = (N <= 1)
       ? defaultGap
       : (requiredHeight > usableH) ? (usableH / Math.max(1, N - 1)) : defaultGap
-    const totalHeight = Math.max(0, N - 1) * actualGap
+    const totalHeight = Math.max(0, N - 1) * gap
     const startY = (H - totalHeight) / 2
-    adjusted = visualNs.map((_, i) => startY + i * actualGap)
+    adjusted = visualNs.map((_, i) => startY + i * gap)
   } else {
     const minGap = LAYOUT.MIN_GAP
+    gap = minGap
     const desired = Math.max(H, (N > 0 ? (2 * pad + Math.max(0, N - 1) * minGap) : H))
     contentHeight = Math.ceil(desired)
     const usableC = Math.max(1, contentHeight - 2 * pad)
@@ -135,7 +139,8 @@ export function computeGeometry(
     const dn = (top - pad) / usableForN
     return Math.max(0, Math.min(1, dn))
   })
-  return { contentHeight, compact, dotNs }
+  const yPositions = dotNs.map(n => pad + n * usableForN)
+  return { contentHeight, compact, gap, yPositions, dotNs }
 }
 
 /**

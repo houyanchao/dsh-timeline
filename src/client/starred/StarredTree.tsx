@@ -16,8 +16,6 @@ import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import { Bus } from '../ui/bus.ts'
 import { dropdown, type DropdownItem } from '../ui/dropdown.tsx'
-import { findMessageElement, findScrollContainer } from '../timeline/TimelineBar.tsx'
-import { smoothScrollTo } from '../timeline/engine.ts'
 import { starEditModal } from '../timeline/StarModal.tsx'
 import { notepad } from '../notepad/NotepadPanel.tsx'
 import {
@@ -130,19 +128,10 @@ export function StarredTree({
       after()
       return
     }
-    const needsScroll = item.kind === 'node'
-    if (item.sessionId === cur) {
-      if (needsScroll) {
-        const port = findScrollContainer()
-        const el = findMessageElement(item.nodeKey)
-        if (port !== null && el !== null) smoothScrollTo(port, el)
-      }
-      after()
-    } else {
-      if (needsScroll) pendingNavigateStore.set({ sessionId: item.sessionId, nodeKey: item.nodeKey })
-      open(item.sessionId)
-      after()
-    }
+    if (item.kind === 'node') pendingNavigateStore.set({ sessionId: item.sessionId, nodeKey: item.nodeKey })
+    else pendingNavigateStore.set(null)
+    if (item.sessionId !== cur) open(item.sessionId)
+    after()
   }
 
   // ==== CRUD（原 handleXxx；store 更新自动触发重渲染） ====

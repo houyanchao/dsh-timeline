@@ -4,6 +4,7 @@
  * smartEnterToastCount / preventAutoScrollEnabled 等）。DSH 单平台，
  * 原按平台分键的设置折叠为单布尔。localStorage + Bus + storage 事件跨标签页同步。
  */
+import { registerStorageSync } from './storageSync.ts'
 import { Bus } from '../ui/bus.ts'
 import { DEFAULT_ACTIVE_COLOR_ID } from './palette.ts'
 
@@ -28,6 +29,14 @@ export interface PluginSettings {
   readonly activeColorId: string
   /** 对话导出开关（原 conversationExportPlatformSettings[id] !== false，默认开）。 */
   readonly conversationExportEnabled: boolean
+  readonly messageScreenshotEnabled: boolean
+  readonly screenshotScale: number
+  readonly exportOptions?: {
+    readonly formatId: string
+    readonly themeId: string
+    readonly showTime: boolean
+    readonly showConversationTime: boolean
+  }
   /** 消息旁时间标签开关（原 chatTimeLabelEnabled !== false，默认开）。 */
   readonly chatTimeLabelEnabled: boolean
   /** 闪记开关（原 aitNotepadEnabled !== false，默认开）。 */
@@ -59,6 +68,8 @@ const DEFAULTS: PluginSettings = {
   quickAskEnabled: true,
   activeColorId: DEFAULT_ACTIVE_COLOR_ID,
   conversationExportEnabled: true,
+  messageScreenshotEnabled: true,
+  screenshotScale: 2,
   chatTimeLabelEnabled: true,
   notepadEnabled: true,
   timelineEnabled: true,
@@ -86,11 +97,7 @@ function load(): PluginSettings {
 
 const bus = new Bus<PluginSettings>(load())
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => {
-    if (e.key === STORAGE_KEY) bus.set(load())
-  })
-}
+registerStorageSync(STORAGE_KEY, () => { bus.set(load()) })
 
 /** 插件设置 API。 */
 export const settingsStore = {

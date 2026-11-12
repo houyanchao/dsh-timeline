@@ -8,6 +8,7 @@
  * markdown 块解析复用 CEPngExporter.parseMarkdownBlocks（与 PNG 一致）。
  */
 import temml from 'temml'
+import { inlineCodeSpans, markdownImages, replaceMarkdownTokens, safeImageSource } from './markdown.ts'
 import { ceFormatChatTime, ceFormatLocalTime, ceGetTheme, type CeTexts, type ExportImage, type ExportJob, type ExportTurn } from './constants.ts'
 import type { CEPngExporter } from './pngExporter.ts'
 
@@ -22,11 +23,11 @@ export class CEPdfExporter {
    * @param texts - 文案面。
    * @param markdownParser - 复用其 parseMarkdownBlocks。
    */
-  async export(job: ExportJob, themeId: string, texts: CeTexts, markdownParser?: CEPngExporter): Promise<void> {
+  async export(job: ExportJob, themeId: string, texts: CeTexts, markdownParser?: CEPngExporter, signal?: AbortSignal): Promise<void> {
     this.texts = texts
     this.parser = markdownParser ?? null
     const html = this.buildHtml(job, themeId)
-    await this.printHtml(html)
+    await this.printHtml(html, signal)
   }
 
   // ==================== HTML 构建 ====================
@@ -87,6 +88,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 .ce-content code { font-family: "SF Mono", "Cascadia Code", Consolas, monospace; font-size: 13px; }
 .ce-content pre code { white-space: pre-wrap; word-break: break-word; }
 .ce-content blockquote { border-left: 3px solid #d1d5db; margin: 8px 0; padding-left: 12px; color: #6b7280; }
+.ce-content table { width: 100%; border-collapse: collapse; margin: 8px 0; table-layout: fixed; }
+.ce-content th, .ce-content td { border: 1px solid #e5e7eb; padding: 6px; text-align: start; }
+.ce-content th { background: #f6f8fa; }
 .ce-content hr { border: none; border-top: 1px solid #e5e7eb; margin: 12px 0; }
 .ce-formula { text-align: center; margin: 12px 0; overflow-x: auto; break-inside: avoid; }
 .ce-img { max-width: 100%; height: auto; border-radius: 6px; margin: 8px 0; break-inside: avoid; }
@@ -101,27 +105,29 @@ a { color: #2563eb; text-decoration: none; }
     const askTime = options.showConversationTime ? ceFormatChatTime(turn.user.time) : ''
     const userText = turn.user.text !== '' ? turn.user.text : this.texts.emptyUserPreview
     const userImages = turn.user.images.map(img => this.imageHtml(img)).join('')
-    const assistantBody = this.assistantHtml(turn)
+    const assistantBody = turn.omitAssistant ? '' : this.assistantHtml(turn)
 
     return `
 <div class="ce-turn">
-  <div class="ce-row">
+  ${turn.omitUser ? '' : `<div class="ce-row">
     <span class="ce-badge q">${this.escapeHtml(this.texts.exportRoleUser)}</span>
     <div class="ce-body">
       <div class="ce-user">${askTime !== '' ? `<div class="ce-time">${this.escapeHtml(askTime)}</div>` : ''}${this.escapeHtml(userText)}</div>
       ${userImages}
     </div>
-  </div>
-  <div class="ce-row">
+  </div>`}
+  ${turn.omitAssistant ? '' : `<div class="ce-row">
     <span class="ce-badge a">${this.escapeHtml(this.texts.exportRoleAssistant)}</span>
     <div class="ce-body"><div class="ce-content">${assistantBody}</div></div>
-  </div>
+  </div>`}
 </div>`
   }
 
   private assistantHtml(turn: ExportTurn): string {
-    const images = turn.assistant.images.map(img => this.imageHtml(img)).join('')
     const md = turn.assistant.markdown
+    const sources = new Set(markdownImages(md).map(image => safeImageSource(image.src)))
+    const images = turn.assistant.images.filter(image => image.src === '' || !sources.has(image.src))
+      .map(image => this.imageHtml(image)).join('')
     let body = ''
     if (md !== '') {
       body = this.blocksToHtml(md)
@@ -172,6 +178,13 @@ a { color: #2563eb; text-decoration: none; }
         case 'quote':
           html += `<blockquote>${this.inlineToHtml(b.text)}</blockquote>`
           break
+        case 'table': {
+          const header = b.headers.map(cell => `<th>${this.inlineToHtml(cell)}</th>`).join('')
+          const rows = b.rows.map(row => `<tr>${b.headers.map((_, column) =>
+            `<td>${this.inlineToHtml(row[column] ?? '')}</td>`).join('')}</tr>`).join('')
+          html += `<table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table>`
+          break
+        }
         case 'formula': {
           const mathml = this.latexToMathML(b.latex, true)
           html += `<div class="ce-formula">${mathml ?? `<code>${this.escapeHtml(b.latex)}</code>`}</div>`
@@ -195,23 +208,24 @@ a { color: #2563eb; text-decoration: none; }
 
     let s = text
 
-    // 行内公式 $...$
+    s = replaceMarkdownTokens(s, inlineCodeSpans(s), code => put(`<code>${this.escapeHtml(code.text)}</code>`))
+    s = replaceMarkdownTokens(s, markdownImages(s), image => {
+      const src = safeImageSource(image.src)
+      return put(src === '' ? this.escapeHtml(image.alt) : `<img class="ce-img" src="${this.attr(src)}" alt="${this.attr(image.alt)}">`)
+    })
     s = s.replace(/\$([^$\n]+?)\$/g, (_, tex: string) => {
       const mathml = this.latexToMathML(tex, false)
       return put(mathml ?? `<code>${this.escapeHtml(tex)}</code>`)
     })
-    // 行内代码 `...`
-    s = s.replace(/`([^`]+?)`/g, (_, code: string) => put(`<code>${this.escapeHtml(code)}</code>`))
 
-    // 转义正文
+    // 在整段正文转义之前处理 URL，避免查询参数被二次转义。
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g, (_, label: string, href: string) => {
+      const url = safeImageSource(href)
+      return put(/^https?:/i.test(url)
+        ? `<a href="${this.attr(url)}">${this.escapeHtml(label)}</a>`
+        : this.escapeHtml(label))
+    })
     s = this.escapeHtml(s)
-
-    // 图片 ![alt](url)
-    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, (_, alt: string, url: string) =>
-      `<img class="ce-img" src="${this.attr(url)}" alt="${this.attr(alt)}">`)
-    // 链接 [text](url)
-    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g, (_, t: string, url: string) =>
-      `<a href="${this.attr(url)}">${t}</a>`)
     // 粗体 **...**
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     // 斜体 *...*
@@ -230,7 +244,7 @@ a { color: #2563eb; text-decoration: none; }
       return temml.renderToString(latex, {
         displayMode: display,
         annotate: false,
-        throwOnError: false,
+        throwOnError: true,
         trust: false,
       })
     } catch {
@@ -260,8 +274,9 @@ a { color: #2563eb; text-decoration: none; }
 
   // ==================== 打印 ====================
 
-  private printHtml(html: string): Promise<void> {
-    return new Promise((resolve) => {
+  private printHtml(html: string, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      signal?.throwIfAborted()
       const iframe = document.createElement('iframe')
       iframe.setAttribute('aria-hidden', 'true')
       iframe.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;height:1123px;border:0;opacity:0;'
@@ -270,54 +285,66 @@ a { color: #2563eb; text-decoration: none; }
       const win = iframe.contentWindow
       if (win === null) {
         iframe.remove()
-        resolve()
+        reject(new Error('Print frame unavailable'))
         return
       }
-      const doc = win.document
-      doc.open()
-      doc.write(html)
-      doc.close()
-
-      let printed = false
-      const finish = (): void => {
-        if (printed) return
-        printed = true
+      const listeners = new AbortController()
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let printing = false
+      const cleanup = (): void => {
+        clearTimeout(timer)
+        listeners.abort()
+        signal?.removeEventListener('abort', abort)
+        iframe.remove()
+      }
+      const abort = (): void => {
+        cleanup()
+        reject(signal?.reason)
+      }
+      const print = (): void => {
+        if (printing || signal?.aborted) return
+        printing = true
+        clearTimeout(timer)
         try {
           win.focus()
           win.print()
-        } catch { /* ignore */ }
-        // 打印对话框关闭后再移除 iframe
-        setTimeout(() => {
-          iframe.remove()
-          resolve()
-        }, 500)
+          timer = setTimeout(() => {
+            cleanup()
+            resolve()
+          }, 500)
+        } catch (error) {
+          cleanup()
+          reject(error)
+        }
       }
+      signal?.addEventListener('abort', abort, { once: true })
 
-      const waitImagesThenPrint = (): void => {
-        const imgs = Array.from(doc.images)
-        const pending = imgs.filter(im => !im.complete)
-        if (pending.length === 0) { finish(); return }
+      try {
+        const doc = win.document
+        doc.open()
+        doc.write(html)
+        doc.close()
+        const pending = Array.from(doc.images).filter(image => !image.complete)
+        if (pending.length === 0) {
+          timer = setTimeout(print, 0)
+          return
+        }
+
         let remaining = pending.length
-        const onSettle = (): void => {
-          remaining -= 1
-          if (remaining <= 0) finish()
+        for (const image of pending) {
+          const settle = (): void => {
+            remaining--
+            if (remaining === 0) print()
+          }
+          for (const event of ['load', 'error']) {
+            image.addEventListener(event, settle, { once: true, signal: listeners.signal })
+          }
         }
-        for (const im of pending) {
-          im.addEventListener('load', onSettle, { once: true })
-          im.addEventListener('error', onSettle, { once: true })
-        }
-        // 兜底：图片迟迟不返回也照常打印
-        setTimeout(finish, 4000)
+        timer = setTimeout(print, 4000)
+      } catch (error) {
+        cleanup()
+        reject(error)
       }
-
-      let started = false
-      const start = (): void => {
-        if (started) return
-        started = true
-        waitImagesThenPrint()
-      }
-      win.addEventListener('load', start)
-      setTimeout(start, 800)
     })
   }
 }

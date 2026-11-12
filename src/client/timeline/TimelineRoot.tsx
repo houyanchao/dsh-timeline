@@ -11,13 +11,11 @@ import { settingsStore } from '../shared/settings.ts'
 import { tooltip } from '../ui/tooltip.tsx'
 import { ACTIVE_COLOR_PALETTE, paletteEntryToCss } from '../shared/palette.ts'
 import { playAiCompleteSound, removeAiCompleteAnchor, showAiCompleteToast, stopAiCompleteSound } from '../shared/aiCompleteReminder.ts'
-import { pendingNavigateStore } from '../starred/storage.ts'
 import { LAYOUT, smoothScrollTo } from './engine.ts'
 import type { StarRecord } from './store.ts'
 import { TimelineBar, findMessageElement, findScrollContainer, type TimelineItem } from './TimelineBar.tsx'
 import { QuestionListPanel } from './QuestionListPanel.tsx'
 import { StarModal } from './StarModal.tsx'
-import { TimeLabels } from './TimeLabels.tsx'
 import { NotepadButton, notepad } from '../notepad/NotepadPanel.tsx'
 import css from './timeline.module.css'
 
@@ -87,20 +85,6 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
       smoothScrollTo(port, el)
     }
   }, [])
-
-  // 跨会话导航后的待滚动目标（收藏树 setNavigateDataForUrl 的 DSH 等价物）：
-  // 节点出现在列表里时消费并滚动。
-  useEffect(() => {
-    const tryConsume = (): void => {
-      const pending = pendingNavigateStore.get()
-      if (pending === null || pending.sessionId !== sessionId) return
-      if (!itemsRef.current.some(item => item.key === pending.nodeKey)) return
-      const key = pendingNavigateStore.consume(sessionId)
-      if (key !== null) scrollToItem(key)
-    }
-    tryConsume()
-    return pendingNavigateStore.subscribe(tryConsume)
-  }, [sessionId, items, scrollToItem])
 
   // 星标点击：已收藏直接取消；未收藏先弹窗输入主题（原版 toggleStarByDotId）。
   const handleToggleStar = useCallback((item: TimelineItem) => {
@@ -266,10 +250,10 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
 
   return (
     <div className={css.root} data-dsh-tl-theme={theme} style={activeColorStyle}>
-      {settings.chatTimeLabelEnabled ? <TimeLabels items={items} dark={dark} /> : null}
       <div
         className={collapsed ? `${css.wrapper} ${css.wrapperCollapsed}` : css.wrapper}
         data-dsh-tl-wrapper
+        data-dsh-tl-rail-visible={!collapsed && !listOpen ? '' : undefined}
         onPointerEnter={onWrapperEnter}
         onPointerLeave={onWrapperLeave}
       >

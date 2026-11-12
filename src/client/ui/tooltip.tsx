@@ -32,6 +32,7 @@ export interface TooltipOptions {
   readonly hideDelay?: number
   readonly gap?: number
   readonly noArrow?: boolean
+  readonly theme?: 'inverse'
   /** 尺寸档位（控制内边距与字号），缺省 medium 即原始样式。 */
   readonly size?: 'small' | 'medium' | 'large'
   /**
@@ -302,7 +303,8 @@ export function TooltipHost({ dark }: { readonly dark: boolean }) {
     ? BUTTON_COLORS
     // 单套形态（无 light 键）视为固定配色，两个主题共用。
     : 'light' in custom ? custom : { light: custom, dark: custom }
-  const colors = dark ? palette.dark : palette.light
+  const surfaceDark = tip?.options.theme === 'inverse' ? !dark : dark
+  const colors = surfaceDark ? palette.dark : palette.light
 
   return (
     <>
@@ -317,7 +319,7 @@ export function TooltipHost({ dark }: { readonly dark: boolean }) {
               tip.options.size === 'large' ? css.tooltipLarge : '',
             ].filter(Boolean).join(' ')}
             role="tooltip"
-            data-tooltip-theme={dark ? 'dark' : 'light'}
+            data-tooltip-theme={surfaceDark ? 'dark' : 'light'}
             style={{
               // 原版 config 的 200 为死配置，实际由 CSS .timeline-tooltip-base 的 400px 生效。
               maxWidth: `${tip.options.maxWidth ?? 400}px`,

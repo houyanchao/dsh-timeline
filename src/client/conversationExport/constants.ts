@@ -7,33 +7,23 @@ import { ACTIVE_COLOR_PALETTE } from '../shared/palette.ts'
 /** 导出文案面（原 CE_TEXT 的全部键，由组件用 t 构建）。 */
 export interface CeTexts {
   readonly buttonTooltip: string
-  readonly modalTitle: string
-  readonly sectionRange: string
   readonly sectionFormat: string
   readonly sectionTheme: string
-  readonly sectionList: string
-  readonly rangeAll: string
-  readonly rangeSelect: string
   readonly headerShowTime: string
   readonly headerShowConversationTime: string
   readonly askTimeLabel: string
   readonly selectAll: string
-  readonly turnPrefix: string
   /** 角色标签（原版固定 Q / A，不走 i18n）。 */
   readonly exportRoleUser: string
   readonly exportRoleAssistant: string
   readonly emptyAssistant: string
   readonly emptyUserPreview: string
   readonly cancel: string
-  readonly confirm: string
   readonly loading: string
-  readonly loadingProgress: string
-  readonly cancelLoading: string
   readonly exporting: string
   readonly done: string
   readonly failed: string
   readonly noConversation: string
-  readonly needSelect: string
   readonly timeLabel: string
   readonly titleLabel: string
   readonly orderLabel: string
@@ -105,6 +95,10 @@ export interface ExportImage {
 /** 一轮对话（原 turns 元素结构）。 */
 export interface ExportTurn {
   readonly order: number
+  readonly userKey: string
+  readonly assistantMessages: readonly { key: string; messageId?: string; text: string }[]
+  readonly omitUser?: boolean
+  readonly omitAssistant?: boolean
   readonly user: {
     readonly text: string
     readonly time: number

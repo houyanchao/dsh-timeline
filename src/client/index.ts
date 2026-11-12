@@ -16,13 +16,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { en, NS, zh, type TimelineKey } from './locales.ts'
 import { bindTheme } from './shared/theme.ts'
-import { bindOfficialRailHiding } from './shared/officialRail.ts'
+import { bindStorageSync } from './shared/storageSync.ts'
+import { loadChatHistory, type ChatHistory } from './shared/history.ts'
+import { pendingNavigateStore } from './starred/storage.ts'
 import { createTimelineStore } from './timeline/store.ts'
 import { TimelineAction } from './timeline/TimelineAction.tsx'
 import { StarredPanel } from './starred/StarredPanel.tsx'
 import { PromptButton } from './smartInputBox/PromptButton.tsx'
 import { QuickAskButton } from './quickAsk/QuickAskButton.tsx'
-import { ExportAction } from './conversationExport/ExportAction.tsx'
+import { AssistantExportActions, ExportAction } from './conversationExport/ExportAction.tsx'
 import { UiHost } from './ui/UiHost.tsx'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -44,8 +46,8 @@ export const inject = ['slots', 'locale', 'sessions', 'theme', 'uiConversation']
  */
 export function apply(ctx: ClientContext): void {
   bindTheme(ctx)
-  // 宿主自带的轮次导航条与本插件时间轴重叠，插件时间轴开启时隐藏之。
-  bindOfficialRailHiding(ctx)
+  bindStorageSync(ctx)
+  ctx.effect(() => () => { pendingNavigateStore.set(null) }, 'dsh-timeline: navigation cleanup')
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-timeline: dictionaries')
   ctx.slots.inject(
     'conversation.session.header.actions',
@@ -55,6 +57,19 @@ export function apply(ctx: ClientContext): void {
       order: 40,
       locale: NS,
       store: createTimelineStore,
+      inject: () => ({
+        loadSavedQuestion: async (sessionId: string, key: string, signal: AbortSignal) => {
+          const id = sessionId as SessionId
+          const session = ctx.sessions.binding(id)?.session
+          if (session === undefined) return false
+          const chat = ctx.uiConversation.binding(id).target('chat')
+          const history = await loadChatHistory(session, chat, {
+            signal,
+            until: page => page.nodes.get(key) !== undefined,
+          })
+          return !signal.aborted && history?.nodes.get(key) !== undefined
+        },
+      }),
     }, TimelineAction),
   )
   // 命令式 UI 宿主（toast/tooltip/dropdown/popconfirm/inputModal/收藏编辑弹窗/设置面板）。
@@ -100,7 +115,15 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
     }, QuickAskButton),
   )
-  // 对话导出：会话头部按钮 + 导出弹窗（图片经 readAttachment 解析字节）。
+  ctx.slots.inject(
+    'conversation.chat.assistant-actions',
+    () => ctx.slots.register({
+      name: 'conversation.chat.assistant-actions',
+      id: 'dsh-timeline-message-export',
+      locale: NS,
+    }, AssistantExportActions),
+  )
+  // 对话导出与消息选择（图片经 readAttachment 解析字节）。
   ctx.slots.inject(
     'conversation.session.header.actions',
     () => ctx.slots.register({
@@ -123,38 +146,11 @@ export function apply(ctx: ClientContext): void {
             data,
           }
         },
-        // 会话窗口按页装载（每页 50 条），导出前向前翻页拉全历史再返回最新快照。
-        loadFullHistory: async (sessionId: string, options?: {
-          readonly onProgress?: (count: number) => void
-          readonly shouldCancel?: () => boolean
-        }) => {
-          const session = ctx.sessions.binding(sessionId as SessionId)?.session
+        loadHistory: async (sessionId: string, signal: AbortSignal, onPage: (history: ChatHistory) => Promise<void>) => {
+          const id = sessionId as SessionId
+          const session = ctx.sessions.binding(id)?.session
           if (session === undefined) return null
-          // Chat 数据不再挂在 Session 快照上，改由 Conversation 装配按 target 发布。
-          const chatSource = ctx.uiConversation.binding(sessionId as SessionId).target('chat')
-          const orderLength = (): number => chatSource.getSnapshot()?.order.length ?? 0
-          const countTurns = (): number => {
-            const chat = chatSource.getSnapshot()
-            if (chat === undefined) return 0
-            let count = 0
-            for (const key of chat.order) {
-              const kind = chat.nodes.get(key)?.kind
-              if (kind === 'user' || kind === 'steering') count += 1
-            }
-            return count
-          }
-          let stall = 0
-          while (session.getSnapshot().hasMore && stall < 3) {
-            if (options?.shouldCancel?.() === true) break
-            const before = orderLength()
-            await session.loadOlder()
-            // loadOlder 单页失败不改 hasMore：连续无进展即中止，避免死循环。
-            stall = orderLength() > before ? 0 : stall + 1
-            options?.onProgress?.(countTurns())
-          }
-          const chat = chatSource.getSnapshot()
-          if (chat === undefined) return null
-          return { order: chat.order, nodes: chat.nodes }
+          return await loadChatHistory(session, ctx.uiConversation.binding(id).target('chat'), { signal, onPage })
         },
       }),
     }, ExportAction),

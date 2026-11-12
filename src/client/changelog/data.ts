@@ -3,6 +3,7 @@
  * chrome.storage 的已读版本存储）。
  * 推送更新提示时只需修改 CHANGELOG_DATA：换 id、选 displayMode、更新条目。
  */
+import { registerStorageSync } from '../shared/storageSync.ts'
 import { Bus } from '../ui/bus.ts'
 
 /** 双语条目（原 features/improvements 项）。 */
@@ -69,9 +70,7 @@ function loadReadVersion(): string | null {
 const readBus = new Bus<string | null>(loadReadVersion())
 
 // 跨标签页同步（原 chrome.storage.onChanged 的等价物）。
-window.addEventListener('storage', (e) => {
-  if (e.key === STORAGE_KEY) readBus.set(loadReadVersion())
-})
+registerStorageSync(STORAGE_KEY, () => { readBus.set(loadReadVersion()) })
 
 /** 已读状态 store（供 Logo 按钮显隐订阅）。 */
 export const changelogReadStore = {
