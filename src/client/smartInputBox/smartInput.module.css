@@ -640,7 +640,7 @@
   right: 0;
   bottom: 0;
   background-color: #d1d5db;
-  border-radius: 26px;
+  border-radius: 999px;
   transition: background-color 0.3s;
 }
 

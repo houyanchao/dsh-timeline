@@ -83,6 +83,18 @@ const client: UserConfig = {
         code: source,
         cssModules: { pattern: '[hash]_[local]' },
         minify: true,
+        visitor: {
+          Declaration: {
+            'border-radius'(declaration) {
+              if (declaration.property !== 'border-radius') return
+              // Use the same full-round radius convention as DSH for circles and pills.
+              const fullRound = Object.values(declaration.value).every(corner => corner.every(size =>
+                size.type === 'percentage' ? size.value >= 0.5
+                  : size.type === 'dimension' && size.value.unit === 'px' && size.value.value >= 99))
+              if (fullRound) return [declaration, { property: 'corner-shape', raw: 'round' }]
+            },
+          },
+        },
       })
       const classMap: Record<string, string> = {}
       for (const [local, exp] of Object.entries(cssExports ?? {})) classMap[local] = exp.name
