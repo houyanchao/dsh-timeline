@@ -1,11 +1,12 @@
 /** Conversation entry points and the shared in-page selection flow. */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { NS } from '../locales.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
+import { findConversationDOM } from '../shared/conversationDom.ts'
 import { settingsStore } from '../shared/settings.ts'
 import type { ChatHistory } from '../shared/history.ts'
 import { panelModal } from '../panelModal/bus.ts'
@@ -140,6 +141,7 @@ export function ExportAction({ sessionId, useChat, useSession, useSessions, reso
   const open = request?.sessionId === sessionId
   const enabled = request?.kind === 'screenshot' ? settings.messageScreenshotEnabled : settings.conversationExportEnabled
   const texts = useMemo(() => buildTexts(t), [t])
+  const scopeAnchor = useRef<HTMLSpanElement>(null)
 
   const close = useCallback(() => {
     if (request === null || requests.get() !== request) return
@@ -159,6 +161,7 @@ export function ExportAction({ sessionId, useChat, useSession, useSessions, reso
 
   return (
     <>
+      <span ref={scopeAnchor} hidden />
       {settings.conversationExportEnabled
         ? <button type="button" className={`${timelineCss.headerBtn} ${css.headerEntry}`} disabled={open} aria-label={t('export.label')}
             onMouseEnter={e => {
@@ -166,7 +169,7 @@ export function ExportAction({ sessionId, useChat, useSession, useSessions, reso
             }}
             onMouseLeave={() => { tooltip.hide() }}
             onClick={e => {
-              if (!document.querySelector('[data-chat-flow]') || order.length === 0) {
+              if (findConversationDOM(scopeAnchor.current) === null || order.length === 0) {
                 toast.warning(texts.noConversation)
                 return
               }
@@ -185,6 +188,7 @@ export function ExportAction({ sessionId, useChat, useSession, useSessions, reso
         ? <MessageSelection
             key={sessionId}
             request={request}
+            scopeAnchor={scopeAnchor}
             t={t}
             texts={texts}
             defaultThemeId={settings.activeColorId}
@@ -222,6 +226,7 @@ function messageChoices(order: ChatHistory['order'], nodes: ChatHistory['nodes']
 
 interface SelectionProps extends ChatHistory {
   readonly request: SelectionRequest
+  readonly scopeAnchor: RefObject<HTMLElement>
   readonly t: ExportActionProps['t']
   readonly texts: CeTexts
   readonly defaultThemeId: string
@@ -257,14 +262,14 @@ function Checkbox({ checked, disabled, label, title, indeterminate, onChange, fo
   )
 }
 
-function MessageSelection({ request, t, texts, defaultThemeId, title, order, nodes, hasMore, running,
+function MessageSelection({ request, scopeAnchor, t, texts, defaultThemeId, title, order, nodes, hasMore, running,
   resolveAttachment, loadHistory, onClose }: SelectionProps) {
   const screenshot = request.kind === 'screenshot'
   const choices = useMemo(() => messageChoices(order, nodes), [order, nodes])
   const byKey = useMemo(() => new Map(choices.map((choice, index) => [choice.key, { ...choice, position: index + 1 }])), [choices])
   const keys = useMemo(() => new Set(byKey.keys()), [byKey])
   const dockRef = useRef<HTMLElement>(null)
-  const layout = useSelectionLayout(dockRef, keys, onClose)
+  const layout = useSelectionLayout(scopeAnchor, dockRef, keys, onClose)
   const [dark, setDark] = useState(detectDarkTheme)
   useEffect(() => observeTheme(() => { setDark(detectDarkTheme()) }), [])
 
@@ -352,7 +357,7 @@ function MessageSelection({ request, t, texts, defaultThemeId, title, order, nod
       // Let the host commit the newly loaded rows before checking their visibility.
       await new Promise<void>(resolve => { requestAnimationFrame(() => resolve()) })
       signal.throwIfAborted()
-      const mounted = mountedMessageElements()
+      const mounted = mountedMessageElements(scopeAnchor.current)
       const available = messageChoices(page.order, page.nodes).filter(choice => !choice.generating && mounted.has(choice.key))
       setSelected(current => new Set([...current, ...available.map(choice => choice.key)]
         .filter(key => !exclusions.current.has(key))))
@@ -381,14 +386,18 @@ function MessageSelection({ request, t, texts, defaultThemeId, title, order, nod
     setBusy(copy ? 'copy' : 'download')
     const filename = ceSanitizeFilename(title, texts.defaultTitle)
     const format = CE_FORMATS.find(f => f.id === (screenshot ? 'png' : formatId)) ?? CE_FORMATS[0]
+    let unavailableImageCount = 0
 
     const prepare = async (): Promise<string | Blob | Blob[] | undefined> => {
       if (screenshot) {
-        const mounted = mountedMessageElements()
+        const mounted = mountedMessageElements(scopeAnchor.current)
         const elements = selectedKeys.map(key => mounted.get(key))
         if (elements.some(element => element === undefined)) throw new Error('unavailable')
         const { captureMessages } = await import('./screenshot.ts')
-        return await captureMessages(elements.filter((element): element is HTMLElement => element !== undefined), pixelRatio, signal, copy)
+        const capture = await captureMessages(elements.filter((element): element is HTMLElement => element !== undefined),
+          pixelRatio, signal, copy, t('export.screenshotMissingImageLabel'))
+        unavailableImageCount = capture.unavailableImageCount
+        return capture.blobs
       }
 
       const selectedTurns = await collectAllTurns(order, nodes, resolveAttachment, {
@@ -461,7 +470,11 @@ function MessageSelection({ request, t, texts, defaultThemeId, title, order, nod
       if (signal.aborted) return
       if (screenshot) settingsStore.set({ screenshotScale: pixelRatio })
       else settingsStore.set({ exportOptions: { formatId, themeId, showTime, showConversationTime } })
-      toast.success(copy ? t('export.copied') : texts.done)
+      if (unavailableImageCount > 0) {
+        toast.warning(ceFormatText(t('export.screenshotPartial'), { count: unavailableImageCount }))
+      } else {
+        toast.success(copy ? t('export.copied') : texts.done)
+      }
       if (!copy) onClose()
     } catch (error) {
       if (signal.aborted) return

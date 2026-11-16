@@ -218,10 +218,16 @@ export function easeInOutQuad(t: number, b: number, c: number, d: number): numbe
  * @param scrollContainer - 滚动容器。
  * @param targetElement - 目标消息元素。
  */
-export function smoothScrollTo(scrollContainer: HTMLElement, targetElement: HTMLElement): void {
+export function smoothScrollTo(
+  scrollContainer: HTMLElement, targetElement: HTMLElement, signal: AbortSignal, isCurrent: () => boolean,
+): Promise<boolean> {
+  const canScroll = (): boolean => !signal.aborted && scrollContainer.isConnected
+    && scrollContainer.contains(targetElement) && targetElement.getClientRects().length > 0 && isCurrent()
+  if (!canScroll()) return Promise.resolve(false)
+
   const duration = LAYOUT.SCROLL_DURATION
   // 声明可信滚动，避免防跳底锚定把插件导航误判为平台自动滚动（原 smoothScrollTo）。
-  const navigationId = preventAutoScroll.notifyUserNavigation({ durationMs: duration + 150 })
+  const navigationId = preventAutoScroll.notifyUserNavigation({ durationMs: duration + 150, scrollContainer })
   const startPosition = scrollContainer.scrollTop
 
   const getTargetPosition = (): number => {
@@ -230,24 +236,36 @@ export function smoothScrollTo(scrollContainer: HTMLElement, targetElement: HTML
     return targetRect.top - containerRect.top + scrollContainer.scrollTop - LAYOUT.SCROLL_OFFSET
   }
 
-  let startTime: number | null = null
-  const animation = (currentTime: number): void => {
-    if (!targetElement.isConnected) return
-    if (startTime === null) startTime = currentTime
-    const timeElapsed = currentTime - startTime
-    const progress = Math.min(timeElapsed / duration, 1)
-    const easedProgress = easeInOutQuad(progress, 0, 1, 1)
-
-    const currentTarget = getTargetPosition()
-    scrollContainer.scrollTop = startPosition + (currentTarget - startPosition) * easedProgress
-
-    if (progress < 1) {
-      requestAnimationFrame(animation)
-    } else {
-      scrollContainer.scrollTop = getTargetPosition()
-      // 导航落点后固化为新的阅读锚点。
-      preventAutoScroll.settleUserNavigation({ id: navigationId })
+  return new Promise(resolve => {
+    let startTime: number | null = null
+    let frame = 0
+    const finish = (reached: boolean): void => {
+      cancelAnimationFrame(frame)
+      signal.removeEventListener('abort', abort)
+      // Only release the auto-scroll exemption belonging to this navigation.
+      if (navigationId !== undefined) preventAutoScroll.settleUserNavigation({ id: navigationId })
+      resolve(reached)
     }
-  }
-  requestAnimationFrame(animation)
+    const abort = (): void => { finish(false) }
+    const animation = (currentTime: number): void => {
+      if (!canScroll()) {
+        finish(false)
+        return
+      }
+      startTime ??= currentTime
+      const progress = Math.min((currentTime - startTime) / duration, 1)
+      const easedProgress = easeInOutQuad(progress, 0, 1, 1)
+      const currentTarget = getTargetPosition()
+      scrollContainer.scrollTop = startPosition + (currentTarget - startPosition) * easedProgress
+
+      if (progress < 1) {
+        frame = requestAnimationFrame(animation)
+      } else {
+        scrollContainer.scrollTop = getTargetPosition()
+        finish(true)
+      }
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    frame = requestAnimationFrame(animation)
+  })
 }

@@ -54,6 +54,7 @@ const SCROLL_SELECTOR = '[data-conversation-scroll]'
 export interface NavigationOptions {
   /** 可信跟随时长（默认 USER_WINDOW）。 */
   readonly durationMs?: number
+  readonly scrollContainer?: HTMLElement
 }
 
 /** 锚定容器：DSH 会话滚动容器或 window 兜底。 */
@@ -263,6 +264,7 @@ class ScrollAnchor {
    */
   notifyUserNavigation(options: NavigationOptions = {}): number | undefined {
     if (!this.pinning || this.scrollContainer === null) return undefined
+    if (options.scrollContainer !== undefined && this.scrollContainer !== options.scrollContainer) return undefined
 
     const durationMs = options.durationMs
     const followMs = durationMs !== undefined && Number.isFinite(durationMs) && durationMs > 0
@@ -298,7 +300,7 @@ class ScrollAnchor {
     this.pendingUserDelta = 0
     this.lastTouchY = null
     this.trustedNavigationUntil = 0
-    this.trustedNavigationId = 0
+    this.trustedNavigationId += 1
   }
 
   // ==================== 锚定逻辑 ====================
@@ -326,7 +328,7 @@ class ScrollAnchor {
     this.pendingUserDelta = 0
     this.lastTouchY = null
     this.trustedNavigationUntil = 0
-    this.trustedNavigationId = 0
+    this.trustedNavigationId += 1
 
     if (!this.pinning) {
       this.pinning = true

@@ -6,12 +6,14 @@
  */
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { findMessageElement, type ConversationDOM } from '../shared/conversationDom.ts'
 import { formatFullNodeTime, formatNodeTime, isNodeTimeToggleable } from '../shared/text.ts'
-import { findMessageElement, type TimelineItem } from './TimelineBar.tsx'
+import type { TimelineItem } from './TimelineBar.tsx'
 import css from './timeline.module.css'
 
 /** 时间标签宿主 props。 */
 export interface TimeLabelsProps {
+  readonly scope: ConversationDOM
   readonly items: readonly TimelineItem[]
   readonly dark: boolean
 }
@@ -23,7 +25,7 @@ interface LabelTarget {
 }
 
 /** 时间标签宿主（挂在 TimelineRoot 内）。 */
-export function TimeLabels({ items, dark }: TimeLabelsProps) {
+export function TimeLabels({ scope, items, dark }: TimeLabelsProps) {
   const [targets, setTargets] = useState<readonly LabelTarget[]>([])
   /** 展开为完整格式的节点 key（原 _expandedNodeIds）。 */
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
@@ -39,7 +41,7 @@ export function TimeLabels({ items, dark }: TimeLabelsProps) {
       let missing = false
       for (const item of items) {
         if (item.time === 0) continue
-        const el = findMessageElement(item.key)
+        const el = findMessageElement(scope.flow, item.key)
         if (el === null) {
           missing = true
           continue
@@ -66,7 +68,7 @@ export function TimeLabels({ items, dark }: TimeLabelsProps) {
     return () => {
       if (raf !== 0) cancelAnimationFrame(raf)
     }
-  }, [items])
+  }, [scope.flow, items])
 
   const toggle = (key: string, time: number): void => {
     if (!isNodeTimeToggleable(time)) return

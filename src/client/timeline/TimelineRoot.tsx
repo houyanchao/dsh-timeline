@@ -6,14 +6,15 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
+import { findMessageElement, type ConversationDOM } from '../shared/conversationDom.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { settingsStore } from '../shared/settings.ts'
 import { tooltip } from '../ui/tooltip.tsx'
 import { ACTIVE_COLOR_PALETTE, paletteEntryToCss } from '../shared/palette.ts'
 import { playAiCompleteSound, removeAiCompleteAnchor, showAiCompleteToast, stopAiCompleteSound } from '../shared/aiCompleteReminder.ts'
-import { LAYOUT, smoothScrollTo } from './engine.ts'
+import { LAYOUT } from './engine.ts'
 import type { StarRecord } from './store.ts'
-import { TimelineBar, findMessageElement, findScrollContainer, type TimelineItem } from './TimelineBar.tsx'
+import { TimelineBar, type TimelineItem } from './TimelineBar.tsx'
 import { QuestionListPanel } from './QuestionListPanel.tsx'
 import { StarModal } from './StarModal.tsx'
 import { NotepadButton, notepad } from '../notepad/NotepadPanel.tsx'
@@ -21,7 +22,7 @@ import css from './timeline.module.css'
 
 /** 根容器 props（由 TimelineAction 传入，纯数据 + 回调）。 */
 export interface TimelineRootProps {
-  readonly sessionId: string
+  readonly scope: ConversationDOM
   readonly items: readonly TimelineItem[]
   readonly starred: Record<string, StarRecord>
   /** 已标记图钉的节点 key 集合。 */
@@ -29,6 +30,7 @@ export interface TimelineRootProps {
   /** AI 是否正在生成（完成提醒的触发信号）。 */
   readonly running: boolean
   readonly collapsed: boolean
+  readonly navigateToItem: (key: string) => Promise<boolean>
   readonly onSetCollapsed: (collapsed: boolean) => void
   /** 添加收藏（弹窗确认后携带自定义标题与所属文件夹）。 */
   readonly onStar: (item: TimelineItem, title: string, folderId: string | null) => void
@@ -55,7 +57,7 @@ function isEditableFocused(): boolean {
  * @param props - 提问节点、收藏集、折叠状态与回调。
  * @returns wrapper + 折叠按钮（portal 到 body 的 fixed 布局由外层完成）。
  */
-export function TimelineRoot({ sessionId, items, starred, pinned, running, collapsed, onSetCollapsed, onStar, onUnstar, onTogglePin, t }: TimelineRootProps) {
+export function TimelineRoot({ scope, items, starred, pinned, running, collapsed, navigateToItem, onSetCollapsed, onStar, onUnstar, onTogglePin, t }: TimelineRootProps) {
   const [dark, setDark] = useState(() => detectDarkTheme())
   const [listOpen, setListOpen] = useState(false)
   const [activeKey, setActiveKey] = useState<string | null>(null)
@@ -70,6 +72,7 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
   itemsRef.current = items
   const activeKeyRef = useRef(activeKey)
   activeKeyRef.current = activeKey
+  const pendingJump = useRef<{ key: string } | null>(null)
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
   const arrowNavEnabledRef = useRef(settings.arrowKeysNavEnabled)
   arrowNavEnabledRef.current = settings.arrowKeysNavEnabled
@@ -78,13 +81,15 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
   useEffect(() => observeTheme(() => { setDark(detectDarkTheme()) }), [])
 
   const scrollToItem = useCallback((key: string) => {
-    const port = findScrollContainer()
-    const el = findMessageElement(key)
-    if (port !== null && el !== null) {
-      setActiveKey(key)
-      smoothScrollTo(port, el)
-    }
-  }, [])
+    // Let repeated arrow presses address the intended item as the scroll runs.
+    const jump = { key }
+    pendingJump.current = jump
+    void navigateToItem(key).then(reached => {
+      if (pendingJump.current !== jump) return
+      pendingJump.current = null
+      if (reached) setActiveKey(key)
+    })
+  }, [navigateToItem])
 
   // 星标点击：已收藏直接取消；未收藏先弹窗输入主题（原版 toggleStarByDotId）。
   const handleToggleStar = useCallback((item: TimelineItem) => {
@@ -106,7 +111,8 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
       const list = itemsRef.current
       if (list.length === 0) return
 
-      const currentIndex = list.findIndex(item => item.key === activeKeyRef.current)
+      const currentKey = pendingJump.current?.key ?? activeKeyRef.current
+      const currentIndex = list.findIndex(item => item.key === currentKey)
       let target: TimelineItem | undefined
       if (currentIndex === -1) {
         target = e.key === 'ArrowUp' ? list[list.length - 1] : list[0]
@@ -132,12 +138,12 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
   const shouldShowCollapse = useCallback((): boolean => {
     const first = itemsRef.current[0]
     if (first === undefined) return true
-    const el = findMessageElement(first.key)
+    const el = findMessageElement(scope.flow, first.key)
     if (el === null) return true
     const rect = el.getBoundingClientRect()
     if (rect.width === 0) return true
     return window.innerWidth - rect.right < 200
-  }, [])
+  }, [scope.flow])
 
   const clearAutoHide = useCallback(() => {
     if (autoHideTimerRef.current !== null) {
@@ -273,6 +279,7 @@ export function TimelineRoot({ sessionId, items, starred, pinned, running, colla
           )
           : (
             <TimelineBar
+              scope={scope}
               items={items}
               starred={starred}
               pinned={pinned}

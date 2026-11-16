@@ -1,4 +1,5 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
+import { findConversationDOM } from '../shared/conversationDom.ts'
 
 export interface MessageMarker {
   readonly key: string
@@ -18,21 +19,24 @@ interface SelectionLayout {
 }
 
 const ROW = '[data-chat-flow-key]'
-const FLOW = '[data-chat-flow]'
-const SCROLLER = '[data-conversation-scroll]'
 
-export function mountedMessageElements(): Map<string, HTMLElement> {
-  const flow = document.querySelector(FLOW)
+function collectMountedMessages(flow?: HTMLElement): Map<string, HTMLElement> {
   const elements = new Map<string, HTMLElement>()
   for (const element of flow?.querySelectorAll<HTMLElement>(ROW) ?? []) {
     const key = element.dataset.chatFlowKey
-    if (key && !element.closest('[hidden]') && element.getClientRects().length > 0) elements.set(key, element)
+    if (key && !element.closest('[hidden], [inert], [aria-hidden="true"]') && element.getClientRects().length > 0) {
+      elements.set(key, element)
+    }
   }
   return elements
 }
 
+export function mountedMessageElements(anchor: Element | null): Map<string, HTMLElement> {
+  return collectMountedMessages(findConversationDOM(anchor)?.flow)
+}
+
 export function useSelectionLayout(
-  dockRef: RefObject<HTMLElement>, keys: ReadonlySet<string>, onViewLost: () => void,
+  scopeAnchor: RefObject<HTMLElement>, dockRef: RefObject<HTMLElement>, keys: ReadonlySet<string>, onViewLost: () => void,
 ): SelectionLayout | null {
   const [layout, setLayout] = useState<SelectionLayout | null>(null)
 
@@ -50,13 +54,13 @@ export function useSelectionLayout(
 
     function measure(): void {
       frame = 0
-      const nextFlow = document.querySelector(FLOW)
-      if (nextFlow === null) {
+      const scope = findConversationDOM(scopeAnchor.current)
+      if (scope === null) {
         onViewLost()
         return
       }
-      const nextScroll = nextFlow?.closest(SCROLLER) ?? null
-      const nextComposer = nextScroll?.querySelector('[data-composer-seat]') ?? null
+      const { flow: nextFlow, scroll: nextScroll } = scope
+      const nextComposer = nextScroll.querySelector('[data-composer-seat]')
       if (nextFlow !== flow) previous = undefined
       if (nextFlow !== flow || nextScroll !== scroll || nextComposer !== composer) {
         flow = nextFlow
@@ -86,7 +90,7 @@ export function useSelectionLayout(
       const mounted = new Set<string>()
       const measured: { key: string; rect: DOMRect }[] = []
 
-      for (const [key, element] of mountedMessageElements()) {
+      for (const [key, element] of collectMountedMessages(nextFlow)) {
         if (!keys.has(key)) continue
         const rect = element.getBoundingClientRect()
         if (rect.width <= 0 || rect.height <= 0) continue
@@ -134,7 +138,7 @@ export function useSelectionLayout(
       window.removeEventListener('resize', schedule)
       cancelAnimationFrame(frame)
     }
-  }, [dockRef, keys, onViewLost])
+  }, [scopeAnchor, dockRef, keys, onViewLost])
 
   return layout
 }

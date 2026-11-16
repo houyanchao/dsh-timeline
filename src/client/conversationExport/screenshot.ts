@@ -4,12 +4,19 @@ const OMIT = 'input, textarea, select, script, style, link, iframe, object, embe
 const MAX_EDGE = 16000
 const MAX_AREA = 32_000_000
 const MAX_FILES = 30
+const IMAGE_TIMEOUT = 8000
+const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink'
+const RETRYABLE_IMAGE_STATUS = new Set([408, 500, 502, 503, 504])
+const CSS_IMAGE_URL = /url\(\s*(?:"((?:\\[\s\S]|[^"\\])*)"|'((?:\\[\s\S]|[^'\\])*)'|((?:\\[\s\S]|[^)\\])*))\s*\)/gi
+const EMPTY_BACKGROUND = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22/%3E'
 
 type StyledElement = HTMLElement | SVGElement | MathMLElement
 
 function cloneContent(node: Node, properties: readonly string[], inherited?: CSSStyleDeclaration): Node | null {
   if (node.nodeType === Node.TEXT_NODE) return node.cloneNode()
   if (!(node instanceof HTMLElement || node instanceof SVGElement || node instanceof MathMLElement) || node.matches(OMIT)) return null
+  // Keep the image candidate visible in the original message.
+  if (node.tagName === 'SOURCE' && node.parentElement?.tagName === 'PICTURE') return null
   const style = getComputedStyle(node)
   if (style.display === 'none' || style.visibility !== 'visible') return null
 
@@ -32,8 +39,9 @@ function cloneContent(node: Node, properties: readonly string[], inherited?: CSS
   if (node instanceof HTMLImageElement && clone instanceof HTMLImageElement) {
     clone.removeAttribute('srcset')
     clone.removeAttribute('sizes')
-    const src = node.currentSrc || node.getAttribute('src')
+    const src = node.currentSrc || node.getAttribute('src')?.trim()
     if (src) clone.src = src
+    else clone.removeAttribute('src')
     clone.loading = 'eager'
   }
   if (node instanceof HTMLCanvasElement && clone instanceof HTMLCanvasElement) {
@@ -51,67 +59,155 @@ function waitForCapture<T>(start: () => Promise<T>, signal: AbortSignal): Promis
   return new Promise((resolve, reject) => {
     const abort = (): void => { reject(signal.reason) }
     signal.addEventListener('abort', abort, { once: true })
-    void Promise.resolve().then(start).then(resolve, reject).finally(() => {
+    void Promise.resolve().then(() => {
+      signal.throwIfAborted()
+      return start()
+    }).then(resolve, reject).finally(() => {
       signal.removeEventListener('abort', abort)
     })
   })
 }
 
-async function inlineImages(root: HTMLElement, signal: AbortSignal): Promise<void> {
-  const cache = new Map<string, Promise<string>>()
-  const load = (src: string): Promise<string> => {
-    const url = new URL(src, document.baseURI)
-    if (url.protocol === 'data:') return Promise.resolve(src)
-    const cached = cache.get(url.href)
-    if (cached !== undefined) return cached
-    const job = (async () => {
-      if (!['http:', 'https:', 'blob:'].includes(url.protocol)) throw new Error('image-unavailable')
-      const response = await fetch(url, { signal, credentials: 'same-origin' })
-      if (!response.ok) throw new Error('image-unavailable')
-      const blob = await response.blob()
-      if (!blob.type.startsWith('image/')) throw new Error('image-unavailable')
-      return await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        const abort = (): void => { reader.abort() }
-        reader.onload = () => { resolve(String(reader.result)) }
-        reader.onerror = () => { reject(reader.error) }
-        reader.onabort = () => { reject(signal.reason) }
-        reader.onloadend = () => { signal.removeEventListener('abort', abort) }
-        signal.throwIfAborted()
-        signal.addEventListener('abort', abort, { once: true })
-        reader.readAsDataURL(blob)
-      })
-    })()
-    cache.set(url.href, job)
-    return job
+async function readImage(url: URL, cancel: AbortSignal): Promise<string> {
+  if (!['data:', 'http:', 'https:', 'blob:'].includes(url.protocol)) throw new Error('image-unavailable')
+  const request = new AbortController()
+  const signal = AbortSignal.any([cancel, request.signal, AbortSignal.timeout(IMAGE_TIMEOUT)])
+  let reader: FileReader | undefined
+  let probe: HTMLImageElement | undefined
+
+  async function fetchDataUrl(): Promise<string> {
+    const options: RequestInit = { signal, credentials: 'same-origin' }
+    let response = await fetch(url, options)
+    if (RETRYABLE_IMAGE_STATUS.has(response.status) && !response.headers.has('Retry-After')) {
+      await response.body?.cancel()
+      signal.throwIfAborted()
+      response = await fetch(url, options)
+    }
+    if (!response.ok) throw new Error('image-unavailable')
+    const blob = await response.blob()
+    signal.throwIfAborted()
+    if (!blob.size || !blob.type.startsWith('image/')) throw new Error('image-unavailable')
+    return await new Promise<string>((resolve, reject) => {
+      const fileReader = new FileReader()
+      reader = fileReader
+      fileReader.onload = () => { resolve(String(fileReader.result)) }
+      fileReader.onerror = () => { reject(fileReader.error) }
+      fileReader.onabort = () => { reject(signal.reason) }
+      fileReader.readAsDataURL(blob)
+    })
   }
 
-  const jobs = [...root.querySelectorAll<HTMLImageElement>('img[src]')].map(async image => {
-    image.src = await load(image.src)
-    await image.decode()
-  })
+  try {
+    return await waitForCapture(async () => {
+      const data = url.protocol === 'data:' ? url.href : await fetchDataUrl()
+      signal.throwIfAborted()
+      probe = new Image()
+      probe.src = data
+      await probe.decode()
+      return data
+    }, signal)
+  } finally {
+    request.abort()
+    if (reader?.readyState === FileReader.LOADING) reader.abort()
+    probe?.removeAttribute('src')
+  }
+}
+
+function decodeCssEscapes(value: string): string {
+  return value.replace(/\\(?:([\da-f]{1,6})(?:\r\n|[\t\n\f\r ])?|(?:\r\n|[\n\f\r])|([^\n\f\r]))/gi,
+    (_, hex: string | undefined, character: string | undefined) => {
+      if (!hex) return character ?? ''
+      const codePoint = Number.parseInt(hex, 16)
+      if (!codePoint || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return '\uFFFD'
+      return String.fromCodePoint(codePoint)
+    })
+}
+
+function imagePlaceholder(image: Element, label: string): string {
+  const rect = image.getBoundingClientRect()
+  const width = rect.width || 128
+  const height = rect.height || 96
+  const scale = Math.min(1, 256 / Math.max(width, height))
+  const w = Math.max(2, Math.round(width * scale))
+  const h = Math.max(2, Math.round(height * scale))
+  const fontSize = Math.min(14, Math.floor((w - 12) / [...label].length))
+  const mark = fontSize >= 9 && h >= 24
+    ? `<text x="50%" y="50%" dy=".35em" text-anchor="middle" font-family="sans-serif" font-size="${fontSize}" fill="#334155">${label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`
+    : `<path d="M${w / 3} ${h / 3}l${w / 3} ${h / 3}m0 ${-h / 3}l${-w / 3} ${h / 3}" stroke="#64748b"/>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" fill="#e2e8f0" stroke="#94a3b8" stroke-dasharray="3 2"/>${mark}</svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+async function inlineImages(root: HTMLElement, signal: AbortSignal, unavailableLabel: string):
+  Promise<{ unavailableImageCount: number; usableImageCount: number }> {
+  const cache = new Map<string, Promise<string>>()
+  let unavailableImageCount = 0
+  let usableImageCount = 0
+  async function readAsset(source: string): Promise<string | null> {
+    signal.throwIfAborted()
+    try {
+      const url = new URL(source, document.baseURI)
+      let asset = cache.get(url.href)
+      if (asset === undefined) {
+        asset = readImage(url, signal)
+        cache.set(url.href, asset)
+      }
+      const data = await asset
+      signal.throwIfAborted()
+      usableImageCount++
+      return data
+    } catch {
+      signal.throwIfAborted()
+      unavailableImageCount++
+      return null
+    }
+  }
+
+  const jobs: Promise<void>[] = []
+  for (const image of root.querySelectorAll<HTMLImageElement>('img[src]')) {
+    const source = image.getAttribute('src')?.trim()
+    if (!source) continue
+    jobs.push(readAsset(source).then(data => {
+      signal.throwIfAborted()
+      image.src = data ?? imagePlaceholder(image, unavailableLabel)
+    }))
+  }
   for (const image of root.querySelectorAll('svg image')) {
-    const src = image.getAttribute('href') || image.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
-    if (src) jobs.push(load(src).then(data => {
-      image.setAttribute('href', data)
-      image.removeAttributeNS('http://www.w3.org/1999/xlink', 'href')
+    const source = (image.getAttribute('href') || image.getAttributeNS(XLINK_NAMESPACE, 'href'))?.trim()
+    if (source) jobs.push(readAsset(source).then(data => {
+      signal.throwIfAborted()
+      image.setAttribute('href', data ?? imagePlaceholder(image, unavailableLabel))
+      image.removeAttributeNS(XLINK_NAMESPACE, 'href')
     }))
   }
   for (const node of root.querySelectorAll<StyledElement>('[style]')) {
     const background = node.style.backgroundImage
-    const urls = [...background.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/g)]
-    if (urls.length === 0) continue
-    jobs.push(Promise.all(urls.map(match => load((match[1] ?? match[2] ?? match[3]).trim()))).then(images => {
-      let css = background
-      urls.forEach((match, index) => { css = css.replace(match[0], `url("${images[index]}")`) })
-      node.style.backgroundImage = css
+    const sources = [...background.matchAll(CSS_IMAGE_URL)].map(([, doubleQuoted, singleQuoted, unquoted]) =>
+      decodeCssEscapes(doubleQuoted ?? singleQuoted ?? unquoted.trim()))
+    if (sources.length === 0) continue
+    jobs.push(Promise.all(sources.map(readAsset)).then(images => {
+      signal.throwIfAborted()
+      let index = 0
+      // Preserve failed background layer slots so the size and position lists stay aligned.
+      node.style.backgroundImage = background.replace(CSS_IMAGE_URL, () => {
+        const url = (images[index++] ?? EMPTY_BACKGROUND).replaceAll('\\', '\\\\').replaceAll('"', '\\"')
+        return `url("${url}")`
+      })
     }))
   }
-  try { await Promise.all(jobs) }
-  catch {
-    signal.throwIfAborted()
-    throw new Error('image-unavailable')
+  await Promise.all(jobs)
+  signal.throwIfAborted()
+  return { unavailableImageCount, usableImageCount }
+}
+
+function hasOtherContent(root: HTMLElement): boolean {
+  const svgDefinitions = 'svg :is(defs, title, desc, clipPath, mask, marker, pattern, symbol)'
+  if (root.querySelector(`canvas, hr, svg :is(path, line, polyline, polygon, rect, circle, ellipse, use):not(${svgDefinitions} *)`)) return true
+  const textNodes = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  for (let node = textNodes.nextNode(); node; node = textNodes.nextNode()) {
+    if (node.textContent?.trim() && !node.parentElement?.closest(svgDefinitions)) return true
   }
+  return false
 }
 
 function sliceContent(root: HTMLElement, top: number, start: number, end: number): HTMLElement {
@@ -138,8 +234,8 @@ function sliceContent(root: HTMLElement, top: number, start: number, end: number
 }
 
 export async function captureMessages(
-  elements: readonly HTMLElement[], pixelRatio: number, cancel: AbortSignal, singleImage: boolean,
-): Promise<Blob[]> {
+  elements: readonly HTMLElement[], pixelRatio: number, cancel: AbortSignal, singleImage: boolean, unavailableLabel: string,
+): Promise<{ blobs: Blob[]; unavailableImageCount: number }> {
   const operation = new AbortController()
   const signal = AbortSignal.any([cancel, operation.signal, AbortSignal.timeout(45000)])
   signal.throwIfAborted()
@@ -170,7 +266,9 @@ export async function captureMessages(
   document.body.append(mount)
 
   try {
-    await waitForCapture(() => inlineImages(content, signal), signal)
+    const { unavailableImageCount, usableImageCount } =
+      await waitForCapture(() => inlineImages(content, signal, unavailableLabel), signal)
+    if (unavailableImageCount > 0 && usableImageCount === 0 && !hasOtherContent(content)) throw new Error('image-unavailable')
     await waitForCapture(() => document.fonts.ready, signal)
     const height = Math.ceil(content.getBoundingClientRect().height)
     const limit = Math.floor(Math.min(MAX_EDGE / pixelRatio, MAX_AREA / (width * pixelRatio ** 2)))
@@ -205,7 +303,7 @@ export async function captureMessages(
       }
       start = end
     }
-    return images
+    return { blobs: images, unavailableImageCount }
   } finally {
     operation.abort()
     mount.remove()

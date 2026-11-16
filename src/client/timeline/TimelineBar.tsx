@@ -4,9 +4,10 @@
  * hover 圆点浮出问题气泡（时间 + 全文 + 收藏操作，点击文本复制）。
  * 全部算法移植自原扩展 TimelineManager（engine.ts）。
  */
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
+import { findMessageElement, type ConversationDOM } from '../shared/conversationDom.ts'
 import { computeActiveIndex, computeGeometry, computeVisibleRange, LAYOUT } from './engine.ts'
 import type { StarRecord } from './store.ts'
 import { DotTooltip } from './DotTooltip.tsx'
@@ -26,6 +27,7 @@ export interface TimelineItem {
 
 /** 轴条组件 props。 */
 export interface TimelineBarProps {
+  readonly scope: ConversationDOM
   readonly items: readonly TimelineItem[]
   readonly starred: Record<string, StarRecord>
   /** 已标记图钉的节点 key 集合。 */
@@ -49,28 +51,9 @@ const PADDING_DEBOUNCE = 500
 /** 底部 padding 元素 class（原 ait-scroll-padding）。 */
 const PADDING_CLASS = 'dsh-tl-scroll-padding'
 
-/**
- * 查找会话滚动容器（宿主 DOM 锚点）。
- * @returns 滚动容器；不存在时 null。
- */
-export function findScrollContainer(): HTMLElement | null {
-  const el = document.querySelector('[data-conversation-scroll]')
-  return el instanceof HTMLElement ? el : null
-}
-
-/**
- * 按 Chat 节点 key 查找消息元素。
- * @param key - Chat 节点 key。
- * @returns 消息元素；不存在时 null。
- */
-export function findMessageElement(key: string): HTMLElement | null {
-  const el = document.querySelector(`[data-chat-flow-key="${CSS.escape(key)}"]`)
-  return el instanceof HTMLElement ? el : null
-}
-
 /** tooltip 悬停目标。 */
 interface HoverTarget {
-  readonly item: TimelineItem
+  readonly key: string
   /** 圆点的视口矩形（tooltip 定位锚点）。 */
   readonly anchorRect: DOMRect
 }
@@ -80,7 +63,8 @@ interface HoverTarget {
  * @param props - 节点、收藏集、激活态与回调。
  * @returns 轴条（含 tooltip）。
  */
-export function TimelineBar({ items, starred, pinned, activeKey, running, onActiveChange, onJump, onToggleStar, onTogglePin, t }: TimelineBarProps) {
+export function TimelineBar({ scope, items, starred, pinned, activeKey, running, onActiveChange, onJump, onToggleStar, onTogglePin, t }: TimelineBarProps) {
+  const { flow, scroll: port } = scope
   const barRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const [geometry, setGeometry] = useState(
@@ -92,6 +76,8 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
 
   const itemsRef = useRef(items)
   itemsRef.current = items
+  // 文案随流式回复更新时，保持滚动监听和长按处理器。
+  const itemKeys = JSON.stringify(items.map(item => item.key))
   const compactRef = useRef(false)
   const offsetTopsRef = useRef<number[]>([])
   const lastActiveChangeRef = useRef(0)
@@ -106,24 +92,25 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
 
   // ==== 几何重算（rAF 节流；移植 _recalcMarkerPositions + updateTimelineGeometry） ====
   const recompute = useCallback(() => {
-    const port = findScrollContainer()
     const bar = barRef.current
-    if (port === null || bar === null) return
+    if (!port.isConnected || !port.contains(flow) || bar === null) return
     const list = itemsRef.current
     if (list.length === 0) return
 
     const containerRect = port.getBoundingClientRect()
     const containerScrollTop = port.scrollTop
     const offsets: number[] = []
+    let hasMountedMessage = false
     for (const item of list) {
-      const el = findMessageElement(item.key)
+      const el = findMessageElement(flow, item.key)
       if (el === null) {
         offsets.push(offsets.length > 0 ? offsets[offsets.length - 1] : 0)
         continue
       }
+      hasMountedMessage = true
       offsets.push(el.getBoundingClientRect().top - containerRect.top + containerScrollTop)
     }
-    offsetTopsRef.current = offsets
+    offsetTopsRef.current = hasMountedMessage ? offsets : []
 
     const first = offsets[0]
     const span = (offsets[offsets.length - 1] - first) || 1
@@ -133,12 +120,11 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
     const next = computeGeometry(visualNs, barHeight, compactRef.current)
     compactRef.current = next.compact
     setGeometry(next)
-  }, [])
+  }, [flow, port])
 
   // ==== 激活节点计算（移植 computeActiveByScroll，含 120ms 变更防抖） ====
   const updateActive = useCallback(() => {
-    const port = findScrollContainer()
-    if (port === null) return
+    if (!port.isConnected || !port.contains(flow)) return
     const index = computeActiveIndex(offsetTopsRef.current, port.scrollTop)
     const key = index >= 0 ? (itemsRef.current[index]?.key ?? null) : null
     if (key === null) return
@@ -157,7 +143,7 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
       return
     }
     commit()
-  }, [onActiveChange])
+  }, [flow, port, onActiveChange])
 
   // ==== 虚拟化：仅渲染可视区 ± buffer 内的圆点（移植 updateVirtualRangeAndRender） ====
   const geometryRef = useRef(geometry)
@@ -175,9 +161,8 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
 
   // ==== 轨道随主滚动联动（移植 syncTimelineTrackToMain：45% 参考线映射） ====
   const syncTrack = useCallback(() => {
-    const port = findScrollContainer()
     const track = trackRef.current
-    if (port === null || track === null) return
+    if (!port.isConnected || !port.contains(flow) || track === null) return
     const offsets = offsetTopsRef.current
     if (offsets.length === 0) return
     // span = last - first（原 contentSpanPx）；参考线相对滚动原点归一化——
@@ -189,13 +174,12 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
     const target = Math.round(r * maxScroll)
     // 变化 > 1px 才写入（原版微优化，避免无谓抖动写）。
     if (Math.abs(track.scrollTop - target) > 1) track.scrollTop = target
-  }, [])
+  }, [flow, port])
 
   // ==== 底部空白 padding：保证最后节点可滚动激活（移植 _updateScrollPadding） ====
   const updateScrollPadding = useCallback(() => {
-    const port = findScrollContainer()
-    const column = document.querySelector('[data-chat-flow]')
-    if (port === null || !(column instanceof HTMLElement)) return
+    const column = flow
+    if (!port.isConnected || !port.contains(column) || offsetTopsRef.current.length === 0) return
 
     // 节点数 <= 1 不需要 padding，移除已存在元素（原版分支）。
     if (itemsRef.current.length <= 1) {
@@ -248,13 +232,10 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
     const needed = Math.ceil(Math.max(0, lastOffsetTop - LAYOUT.ACTIVATE_AHEAD + 20 - cleanMaxScrollTop))
     const currentTarget = Number.parseInt(paddingEl.style.height, 10) || 0
     if (currentTarget !== needed) paddingEl.style.height = `${needed}px`
-  }, [])
+  }, [flow, port])
 
   // 滚动 / 内容高度变化 / 轴条尺寸变化 → 重算。
   useEffect(() => {
-    const port = findScrollContainer()
-    if (port === null) return
-
     let raf = 0
     let paddingTimer: ReturnType<typeof setTimeout> | null = null
     const schedulePadding = (): void => {
@@ -284,11 +265,11 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
     const bar = barRef.current
     if (bar !== null) resizeObserver.observe(bar)
     // 流式回复期间消息高度持续变化：观察消息列容器的尺寸。
-    const column = document.querySelector('[data-chat-flow]')
-    if (column instanceof HTMLElement) resizeObserver.observe(column)
+    resizeObserver.observe(flow)
 
     // 时间轴上滚轮驱动主对话滚动（原 onTimelineWheel，passive: false）。
     const onWheel = (e: WheelEvent): void => {
+      if (!port.isConnected || !port.contains(flow)) return
       e.preventDefault()
       port.scrollTop += e.deltaY
       schedule()
@@ -367,14 +348,14 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
       if (paddingTimer !== null) clearTimeout(paddingTimer)
       if (pendingActiveTimerRef.current !== null) clearTimeout(pendingActiveTimerRef.current)
     }
-  }, [items, recompute, updateActive, syncTrack, updateVirtualRange, updateScrollPadding])
+  }, [flow, port, itemKeys, running, recompute, updateActive, syncTrack, updateVirtualRange, updateScrollPadding])
 
-  // 仅在组件卸载时移除注入宿主的 padding 元素（原 destroy 清理）。
-  // 不能放在上面的 effect：其依赖含 items，每条新消息都会重跑 cleanup，
+  // 会话消息列更换或组件卸载时，仅移除该消息列的 padding。
+  // 不能放在上面的 effect：每条新消息都会重跑 cleanup，
   // padding 被删除重建会导致高度从 0 重新过渡、滚动位置跳动。
   useEffect(() => () => {
-    document.querySelectorAll(`.${PADDING_CLASS}`).forEach(el => { el.remove() })
-  }, [])
+    flow.querySelector(`:scope > .${PADDING_CLASS}`)?.remove()
+  }, [flow])
 
   // ==== tooltip 显示/延迟隐藏（TOOLTIP_HIDE_DELAY=100ms，悬停气泡本身保持） ====
   const cancelHide = useCallback(() => {
@@ -399,6 +380,7 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
     '--tl-marker-size': `${markerSize}px`,
   } as CSSProperties : undefined
   const visibleItems = items.slice(visibleRange.start, visibleRange.end + 1)
+  const hoveredItem = hover === null ? undefined : items.find(item => item.key === hover.key)
 
   return (
     <>
@@ -411,59 +393,50 @@ export function TimelineBar({ items, starred, pinned, activeKey, running, onActi
               const isActive = item.key === activeKey
               const n = geometry.dotNs[index] ?? 0
               return (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={[
-                    css.dot,
-                    isActive ? css.dotActive : '',
-                    isStarred ? css.dotStarred : '',
-                  ].filter(Boolean).join(' ')}
-                  style={{ '--n': n } as CSSProperties}
-                  data-tl-key={item.key}
-                  aria-label={t('dot.aria', { index: index + 1, title: item.title.slice(0, 40) })}
-                  aria-current={isActive ? 'true' : undefined}
-                  onPointerEnter={(event) => {
-                    cancelHide()
-                    setHover({ item, anchorRect: event.currentTarget.getBoundingClientRect() })
-                  }}
-                  onPointerLeave={scheduleHide}
-                  onClick={() => {
-                    // 长按已切换图钉：吞掉本次点击（原 longPressTriggered 分支）。
-                    if (longPressTriggeredRef.current) {
-                      longPressTriggeredRef.current = false
-                      return
-                    }
-                    onJump(item.key)
-                  }}
-                />
+                <Fragment key={item.key}>
+                  <button
+                    type="button"
+                    className={[
+                      css.dot,
+                      isActive ? css.dotActive : '',
+                      isStarred ? css.dotStarred : '',
+                    ].filter(Boolean).join(' ')}
+                    style={{ '--n': n } as CSSProperties}
+                    data-tl-key={item.key}
+                    aria-label={t('dot.aria', { index: index + 1, title: item.title.slice(0, 40) })}
+                    aria-current={isActive ? 'true' : undefined}
+                    onPointerEnter={(event) => {
+                      cancelHide()
+                      setHover({ key: item.key, anchorRect: event.currentTarget.getBoundingClientRect() })
+                    }}
+                    onPointerLeave={scheduleHide}
+                    onClick={() => {
+                      // 长按已切换图钉：吞掉本次点击（原 longPressTriggered 分支）。
+                      if (longPressTriggeredRef.current) {
+                        longPressTriggeredRef.current = false
+                        return
+                      }
+                      onJump(item.key)
+                    }}
+                  />
+                  {pinned.has(item.key) && (
+                    <span className={css.pinMarker} style={{ '--n': n } as CSSProperties} aria-hidden />
+                  )}
+                </Fragment>
               )
             })}
-            {/* 图钉标记（原 renderPinMarkers：独立元素、与圆点同法定位） */}
-            {visibleItems.map((item, offset) => (
-              pinned.has(item.key)
-                ? (
-                  <span
-                    key={`pin-${item.key}`}
-                    className={css.pinMarker}
-                    style={{ '--n': geometry.dotNs[visibleRange.start + offset] ?? 0 } as CSSProperties}
-                    aria-hidden
-                  />
-                )
-                : null
-            ))}
           </div>
         </div>
       </div>
-      {hover !== null
+      {hover !== null && hoveredItem !== undefined
         ? (
           <DotTooltip
-            item={hover.item}
+            item={hoveredItem}
             anchorRect={hover.anchorRect}
-            isStarred={starred[hover.item.key] !== undefined}
-            isPinned={pinned.has(hover.item.key)}
-            onToggleStar={() => { onToggleStar(hover.item) }}
-            onTogglePin={() => { onTogglePin(hover.item) }}
+            isStarred={starred[hoveredItem.key] !== undefined}
+            isPinned={pinned.has(hoveredItem.key)}
+            onToggleStar={() => { onToggleStar(hoveredItem) }}
+            onTogglePin={() => { onTogglePin(hoveredItem) }}
             onPointerEnter={cancelHide}
             onPointerLeave={scheduleHide}
             t={t}

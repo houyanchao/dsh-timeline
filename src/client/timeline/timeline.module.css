@@ -30,6 +30,9 @@
   --tl-compact-line-width: 18px;
   --tl-compact-line-hover-width: 24px;
   --tl-compact-line-height: 2px;
+  --tl-compact-line-inset: 4px;
+  --tl-marker-line-gap: 2px;
+  --tl-marker-gap: 2px;
   --tl-toggle-color: #999;
   --tl-toggle-hover-bg: rgba(0, 0, 0, 0.08);
   --tl-toggle-hover-color: #666;
@@ -316,6 +319,8 @@
 
 /* ==== 紧凑模式（.ait-compact-mode：节点变横线，隐藏背景框） ==== */
 .barCompact {
+  /* 悬停时图钉和星标最多向左伸出 35px，沟槽同时容纳阴影。 */
+  --tl-pin-gutter: 40px;
   background-color: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -330,16 +335,37 @@
   height: min(var(--tl-hit-size), var(--tl-node-gap));
 }
 
+.barCompact .dot,
 .barCompact .pinMarker {
+  --tl-current-line-width: var(--tl-compact-line-width);
+}
+
+.barCompact .dot:hover,
+.barCompact .dot:hover + .pinMarker {
+  --tl-current-line-width: var(--tl-compact-line-hover-width);
+}
+
+.barCompact .pinMarker {
+  left: auto;
+  right: calc(
+    (100% - var(--tl-hit-size)) / 2
+    + var(--tl-compact-line-inset) + var(--tl-current-line-width)
+    + var(--tl-marker-line-gap) + var(--tl-pin-star-space, 0px)
+  );
   width: var(--tl-marker-size);
   height: var(--tl-marker-size);
+  transition: right 0.16s ease;
+}
+
+.barCompact .dotStarred + .pinMarker {
+  --tl-pin-star-space: calc(var(--tl-marker-size) + var(--tl-marker-gap));
 }
 
 .barCompact .dotStarred::before {
   content: '';
   position: absolute;
   top: 50%;
-  right: calc(6px + var(--tl-compact-line-width));
+  right: calc(var(--tl-compact-line-inset) + var(--tl-current-line-width) + var(--tl-marker-line-gap));
   left: auto;
   width: var(--tl-marker-size);
   height: var(--tl-marker-size);
@@ -347,28 +373,25 @@
   background: var(--tl-star-color);
   clip-path: polygon(50% 0, 64% 35%, 100% 38%, 73% 62%, 81% 100%, 50% 80%, 19% 100%, 27% 62%, 0 38%, 36% 35%);
   transform: translateY(-50%);
+  transition: right 0.16s ease;
   pointer-events: none;
   display: block;
   z-index: 2;
 }
 
 .barCompact .dotStarred:hover::before {
-  right: calc(6px + var(--tl-compact-line-hover-width));
+  transform: translateY(-50%);
 }
 
 .barCompact .dot::after {
   border-radius: 0;
-  width: var(--tl-compact-line-width);
+  width: var(--tl-current-line-width);
   height: var(--tl-compact-line-height);
   left: auto;
-  right: 4px;
+  right: var(--tl-compact-line-inset);
   transform: translateY(-50%);
   clip-path: none;
   transition: width 0.16s ease, height 0.16s ease, background-color 0.15s ease, filter 0.15s ease;
-}
-
-.barCompact .dot:hover::after {
-  width: var(--tl-compact-line-hover-width);
 }
 
 .barCompact .dotStarred::after {

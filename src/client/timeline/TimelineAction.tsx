@@ -4,7 +4,7 @@
  * 数据全部来自 useSession 的 Chat 快照（无 DOM 爬取），
  * 显隐/折叠偏好与收藏标记走会话级持久化 store。
  */
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime, PropsStore, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ChatNodeStore } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -12,14 +12,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS } from '../locales.ts'
 import { summarizeAssistantBlocks, summarizeBlocks } from '../shared/text.ts'
 import { settingsStore } from '../shared/settings.ts'
-import { nodeStarKey, pendingNavigateStore, pinsStore, sessionStarKey, starredStore } from '../starred/storage.ts'
+import { useConversationDOM } from '../shared/conversationDom.ts'
+import { nodeStarKey, pendingNavigateStore, pinsStore, sessionStarKey, starredStore, type PendingNavigate } from '../starred/storage.ts'
 import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import type { createTimelineStore, StarRecord } from './store.ts'
 import { TimelineRoot } from './TimelineRoot.tsx'
 import { starEditModal } from './StarModal.tsx'
-import { findMessageElement, findScrollContainer, type TimelineItem } from './TimelineBar.tsx'
-import { smoothScrollTo } from './engine.ts'
+import type { TimelineItem } from './TimelineBar.tsx'
+import { findQuestionTarget, navigateToQuestion } from './navigation.ts'
 import css from './timeline.module.css'
 
 /** 整会话收藏 toast 配色（原 toggleChatStar 的 toastColor；黑底改取宿主 tooltip 底板 token）。 */
@@ -38,103 +39,50 @@ export type TimelineActionProps =
 /** 计入时间轴的用户输入节点类别（提问 + 轮中追问）。 */
 const USER_KINDS = new Set(['user', 'steering'])
 
-/**
- * ChatView 的消息列容器：唯一随对话视图卸载的稳定标记。
- * 注意不能用 [data-conversation-scroll]——那是 ConversationRoot 的常驻
- * 滚动骨架（包着视图区和输入框），切 tab 也不消失。
- */
-const CHAT_VIEW_SELECTOR = '[data-chat-flow]'
-
-/**
- * 对话视图是否在场。宿主的视图 ring 只渲染激活 tab
- * （ConversationSession 的 renderSlot only），切到「轨迹」等其他 tab 时
- * ChatView 整体卸载；本组件挂在会话头部（两个 tab 下都在），
- * 时间轴 portal 到 body，需要据此被动隐藏。
- * 宿主的视图选择存在它自己的槽位 store 里，插件拿不到，退而观察 DOM。
- * @returns ChatView 消息列是否存在。
- */
-function useChatViewPresent(): boolean {
-  const [present, setPresent] = useState(() => document.querySelector(CHAT_VIEW_SELECTOR) !== null)
-  useEffect(() => {
-    const check = (): void => { setPresent(document.querySelector(CHAT_VIEW_SELECTOR) !== null) }
-    const affectsChat = (node: Node): boolean => node instanceof Element
-      && (node.matches(CHAT_VIEW_SELECTOR) || node.querySelector(CHAT_VIEW_SELECTOR) !== null)
-    check()
-    const observer = new MutationObserver(records => {
-      if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(affectsChat))) check()
-    })
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => { observer.disconnect() }
-  }, [])
-  return present
-}
-
-function findVisibleQuestion(key: string): HTMLElement | null {
-  const element = findMessageElement(key)
-  return element !== null && element.getClientRects().length > 0 ? element : null
-}
-
-function waitForQuestion(key: string, signal: AbortSignal): Promise<HTMLElement | null> {
-  const existing = findVisibleQuestion(key)
-  if (signal.aborted || existing !== null) return Promise.resolve(signal.aborted ? null : existing)
-  return new Promise(resolve => {
-    const finish = (element: HTMLElement | null): void => {
-      observer.disconnect()
-      clearTimeout(timer)
-      signal.removeEventListener('abort', abort)
-      resolve(element)
-    }
-    const abort = (): void => { finish(null) }
-    const observer = new MutationObserver(() => {
-      const element = findVisibleQuestion(key)
-      if (element !== null) finish(element)
-    })
-    observer.observe(document.querySelector(CHAT_VIEW_SELECTOR) ?? document.body, {
-      childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'],
-    })
-    const timer = setTimeout(abort, 3000)
-    signal.addEventListener('abort', abort, { once: true })
-  })
-}
-
-function useSavedQuestionNavigation(
-  sessionId: string, chatViewPresent: boolean, loadSavedQuestion: TimelineActionProps['loadSavedQuestion'],
+function useQuestionNavigation(
+  sessionId: string, anchor: RefObject<HTMLElement>, chatViewPresent: boolean,
+  loadSavedQuestion: TimelineActionProps['loadSavedQuestion'],
   t: TranslateNS<typeof NS>,
-): void {
+): (key: string) => Promise<boolean> {
+  const current = useRef<{ controller: AbortController; saved?: PendingNavigate } | null>(null)
+
+  useLayoutEffect(() => () => { current.current?.controller.abort() }, [sessionId])
+
+  const start = useCallback(async (key: string, saved?: PendingNavigate): Promise<boolean> => {
+    current.current?.controller.abort()
+    const controller = new AbortController()
+    current.current = { controller, saved }
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30000)])
+    try {
+      const ready = saved === undefined || findQuestionTarget(anchor.current, key) !== null
+        || await loadSavedQuestion(sessionId, key, signal)
+      const reached = ready && await navigateToQuestion(() => anchor.current, key, signal)
+      if (saved !== undefined && !reached && !controller.signal.aborted) toast.warning(t('starred.questionUnavailable'))
+      return reached
+    } catch {
+      if (saved !== undefined && !controller.signal.aborted) toast.warning(t('starred.questionUnavailable'))
+      return false
+    } finally {
+      if (current.current?.controller === controller) current.current = null
+      if (saved !== undefined && !controller.signal.aborted && pendingNavigateStore.get() === saved) pendingNavigateStore.set(null)
+    }
+  }, [anchor, sessionId, loadSavedQuestion, t])
+
   useEffect(() => {
     if (!chatViewPresent) return
-    let current: AbortController | undefined
-    const navigate = (): void => {
-      current?.abort()
+    const navigateStored = (): void => {
       const target = pendingNavigateStore.get()
-      if (target?.sessionId !== sessionId) return
+      if (target?.sessionId === sessionId && current.current?.saved !== target) void start(target.nodeKey, target)
+    }
+    const unsubscribe = pendingNavigateStore.subscribe(navigateStored)
+    navigateStored()
+    return unsubscribe
+  }, [sessionId, chatViewPresent, start])
 
-      const controller = new AbortController()
-      current = controller
-      const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30000)])
-      void (async () => {
-        try {
-          const existing = findVisibleQuestion(target.nodeKey)
-          const ready = existing !== null || await loadSavedQuestion(sessionId, target.nodeKey, signal)
-          const element = ready ? await waitForQuestion(target.nodeKey, signal) : null
-          const port = findScrollContainer()
-          if (controller.signal.aborted) return
-          if (port !== null && element !== null && !signal.aborted) smoothScrollTo(port, element)
-          else toast.warning(t('starred.questionUnavailable'))
-        } catch {
-          if (!controller.signal.aborted) toast.warning(t('starred.questionUnavailable'))
-        } finally {
-          if (!controller.signal.aborted && pendingNavigateStore.get() === target) pendingNavigateStore.set(null)
-        }
-      })()
-    }
-    const unsubscribe = pendingNavigateStore.subscribe(navigate)
-    navigate()
-    return () => {
-      unsubscribe()
-      current?.abort()
-    }
-  }, [sessionId, chatViewPresent, loadSavedQuestion, t])
+  return useCallback((key: string) => {
+    if (pendingNavigateStore.get()?.sessionId === sessionId) pendingNavigateStore.set(null)
+    return start(key)
+  }, [sessionId, start])
 }
 
 /** 与 user/steering 节点 data 对齐的最小读取形态。 */
@@ -180,18 +128,26 @@ function collectItems(
   return items
 }
 
+function sameTimelineItems(previous: readonly TimelineItem[], next: readonly TimelineItem[]): boolean {
+  return previous.length === next.length && previous.every((item, index) => {
+    const other = next[index]
+    return item.key === other.key && item.title === other.title
+      && item.time === other.time && item.reply === other.reply
+  })
+}
+
 /**
  * 会话头部的时间轴入口。
  * @param props - 槽位运行时 + store + 词典。
  * @returns 开关按钮；开启且有提问时渲染时间轴。
  */
 export function TimelineAction({ sessionId, useChat, useSession, useSessions, useStore, actions, loadSavedQuestion, t }: TimelineActionProps) {
-  const order = useChat(s => s.order)
-  const nodes = useChat(s => s.nodes)
+  const items = useChat(s => collectItems(s.order, s.nodes, t), sameTimelineItems)
   const running = useSession(s => s.running)
   const collapsed = useStore(s => s.collapsed)
-  const chatViewPresent = useChatViewPresent()
-  useSavedQuestionNavigation(sessionId, chatViewPresent, loadSavedQuestion, t)
+  const scopeAnchor = useRef<HTMLSpanElement>(null)
+  const scope = useConversationDOM(scopeAnchor)
+  const navigateToItem = useQuestionNavigation(sessionId, scopeAnchor, scope !== null, loadSavedQuestion, t)
   const displayTitle = useSessions(s => s.byId[sessionId]?.displayTitle)
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
 
@@ -216,8 +172,6 @@ export function TimelineAction({ sessionId, useChat, useSession, useSessions, us
     }
     return set
   }, [pinsState, sessionId])
-
-  const items = useMemo(() => collectItems(order, nodes, t), [order, nodes, t])
 
   // 整会话收藏（原 toggleChatStar）。
   const chatKey = sessionStarKey(sessionId)
@@ -249,12 +203,13 @@ export function TimelineAction({ sessionId, useChat, useSession, useSessions, us
   }
 
   // 显示时间轴总开关（设置面板控制，头部不再放显隐按钮）。
-  if (!settings.timelineEnabled) return null
+  if (!settings.timelineEnabled) return <><span ref={scopeAnchor} hidden /></>
 
   const chatStarLabel = chatStarred ? t('starred.unstar') : t('starred.starChat')
 
   return (
     <>
+      <span ref={scopeAnchor} hidden />
       {/* 整会话收藏按钮（原 ait-timeline-star-chat-btn-native） */}
       <button
         type="button"
@@ -285,10 +240,12 @@ export function TimelineAction({ sessionId, useChat, useSession, useSessions, us
         </svg>
         <span>{t('starred.starChatLabel')}</span>
       </button>
-      {chatViewPresent && items.length > 0
+      {scope !== null && items.length > 0
         ? createPortal(
             <TimelineRoot
-              sessionId={sessionId}
+              key={sessionId}
+              scope={scope}
+              navigateToItem={navigateToItem}
               items={items}
               starred={starred}
               pinned={pinned}
