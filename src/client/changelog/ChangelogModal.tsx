@@ -138,15 +138,15 @@ export function ChangelogHost({ t }: { readonly t: T }) {
           <div className={css.body}>
             <Section title={t('changelog.features')} emoji="✨" items={CHANGELOG_DATA.features} lang={lang} />
             <Section title={t('changelog.improvements')} emoji="🔧" items={CHANGELOG_DATA.improvements} lang={lang} />
+            <div className={css.ratingBar}>
+              <span className={css.ratingText}>{t('changelog.ratingText')}</span>
+              <a className={css.ratingBtn} href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+                {t('changelog.ratingBtn')}
+              </a>
+            </div>
             <div className={css.browserStoreActions}>
               <BrowserStoreLinks t={t} className={css.browserStoreBtn} />
             </div>
-          </div>
-          <div className={css.ratingBar}>
-            <span className={css.ratingText}>{t('changelog.ratingText')}</span>
-            <a className={css.ratingBtn} href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-              {t('changelog.ratingBtn')}
-            </a>
           </div>
           <div className={css.footer}>
             <div className={css.footerLinks}>
@@ -181,7 +181,7 @@ export function ChangelogHost({ t }: { readonly t: T }) {
               </a>
             </div>
             <button type="button" className={css.confirmBtn} onClick={close}>
-              {t('changelog.gotIt')}
+              {t('changelog.close')}
             </button>
           </div>
         </div>
