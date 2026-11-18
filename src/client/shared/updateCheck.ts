@@ -1,10 +1,13 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { Bus } from '../ui/bus.ts'
+import { registerStorageSync } from './storageSync.ts'
 import { PLUGIN_VERSION } from './version.ts'
 
 const LATEST_URL = 'https://registry.npmjs.org/dsh-timeline/latest'
 const CACHE_MS = 24 * 60 * 60 * 1000
 const RETRY_MS = 5 * 60 * 1000
+const SEEN_VERSION_KEY = 'dsh.timeline.update.seenVersion'
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 const NUMERIC = /^\d+$/
 
@@ -53,8 +56,20 @@ function isNewer(latest: Version, current: Version): boolean {
 const currentVersion = parseVersion(PLUGIN_VERSION)
 const availableUpdate = new Bus<string | null>(null)
 const getAvailableUpdate = () => availableUpdate.get()
+const seenVersion = new Bus<Version | null>(readSeenVersion())
+const getSeenVersion = () => seenVersion.get()
+registerStorageSync(SEEN_VERSION_KEY, () => { seenVersion.set(readSeenVersion()) })
 let checking = false
 let checkAgainAt = 0
+
+function readSeenVersion(): Version | null {
+  try {
+    const value = localStorage.getItem(SEEN_VERSION_KEY)
+    return value === null ? null : parseVersion(value)
+  } catch {
+    return null
+  }
+}
 
 async function checkForUpdate(): Promise<void> {
   if (currentVersion === null || checking || Date.now() < checkAgainAt) return
@@ -77,8 +92,45 @@ async function checkForUpdate(): Promise<void> {
   }
 }
 
-/** 在显示更新标签的面板打开时检查，两处入口共享请求和结果。 */
+export function bindUpdateCheck(ctx: ClientContext): void {
+  ctx.effect(() => {
+    const refresh = (): void => { void checkForUpdate() }
+    refresh()
+    const timer = window.setInterval(refresh, RETRY_MS)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, 'dsh-timeline: npm update check')
+}
+
+/** 各入口共享 npm 最新版检测结果。 */
 export function useAvailableUpdate(): string | null {
   useEffect(() => { void checkForUpdate() }, [])
   return useSyncExternalStore(availableUpdate.subscribe, getAvailableUpdate)
+}
+
+export function useUnseenUpdate(): string | null {
+  const version = useAvailableUpdate()
+  const seen = useSyncExternalStore(seenVersion.subscribe, getSeenVersion)
+  if (version === null || seen === null) return version
+  const latest = parseVersion(version)
+  return latest !== null && isNewer(latest, seen) ? version : null
+}
+
+export function markUpdateSeen(version: string): void {
+  const latest = parseVersion(version)
+  const seen = seenVersion.get()
+  if (latest === null || (seen !== null && !isNewer(latest, seen))) return
+
+  // 另一个窗口可能已确认更高版本，读回持久记录再写入。
+  const stored = readSeenVersion()
+  if (stored !== null && !isNewer(latest, stored)) {
+    seenVersion.set(stored)
+    return
+  }
+
+  try { localStorage.setItem(SEEN_VERSION_KEY, version) } catch { /* 当前窗口仍可消除提示 */ }
+  seenVersion.set(latest)
 }

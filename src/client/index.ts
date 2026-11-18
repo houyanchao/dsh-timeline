@@ -17,6 +17,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { en, NS, zh, type TimelineKey } from './locales.ts'
 import { bindTheme } from './shared/theme.ts'
 import { bindStorageSync } from './shared/storageSync.ts'
+import { bindUpdateCheck } from './shared/updateCheck.ts'
 import { loadChatHistory, type ChatHistory } from './shared/history.ts'
 import { pendingNavigateStore } from './starred/storage.ts'
 import { createTimelineStore } from './timeline/store.ts'
@@ -83,6 +84,7 @@ export function apply(ctx: ClientContext): void {
 
   bindTheme(ctx)
   bindStorageSync(ctx)
+  bindUpdateCheck(ctx)
   ctx.effect(() => () => { pendingNavigateStore.set(null) }, 'dsh-timeline: navigation cleanup')
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-timeline: dictionaries')
   ctx.slots.inject(

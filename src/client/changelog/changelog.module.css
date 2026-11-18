@@ -1,6 +1,5 @@
 /* ============================================
    版本更新弹窗（移植原 changelog-modal/styles.css）
-   + 更新 Logo 按钮（原 prompt-button.css 的 .smart-input-update-btn）
    ============================================ */
 
 /* ==================== Overlay ==================== */
@@ -374,51 +373,6 @@
 .confirmBtn:active {
   transform: translateY(0);
   box-shadow: 0 1px 4px rgba(26, 26, 46, 0.15);
-}
-
-/* ==================== 更新 Logo 按钮（原 .smart-input-update-btn） ==================== */
-
-/* 与提示词按钮、宿主「命令」按钮（InputBar.module.css 的 .add）同款圆形底座。 */
-.updateBtn {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: none;
-  padding: 0;
-  border-radius: 999px;
-  background: var(--dsw-specific-selector);
-  cursor: pointer;
-  user-select: none;
-  /* 与提示词按钮同理：把工具行 16px 的 flex gap 收到 8px。 */
-  margin-left: -8px;
-}
-
-.updateBtn:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover-solid);
-}
-
-.updateLogo {
-  /* 原版 32px 按钮内 20px logo，等比适配 28px 按钮 */
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
-.updateDot {
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  width: 10px;
-  height: 10px;
-  background: #ef4444;
-  border-radius: 50%;
-  /* 描边取按钮底色，红点才像贴在按钮上而不是浮在卡片上。 */
-  border: 1.5px solid var(--dsw-specific-selector);
 }
 
 /* ==================== Dark Mode ==================== */

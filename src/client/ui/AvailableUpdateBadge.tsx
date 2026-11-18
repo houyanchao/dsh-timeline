@@ -1,4 +1,4 @@
-import { useAvailableUpdate } from '../shared/updateCheck.ts'
+import { markUpdateSeen, useAvailableUpdate } from '../shared/updateCheck.ts'
 import css from './availableUpdateBadge.module.css'
 
 export type OpenPluginVersions = (closePanel: () => void) => void
@@ -18,7 +18,10 @@ export function AvailableUpdateBadge({ label, title, onClick, compact = false, d
       type="button"
       className={css.badge}
       title={title}
-      onClick={onClick}
+      onClick={() => {
+        markUpdateSeen(version)
+        onClick()
+      }}
       data-compact={compact || undefined}
       data-theme={dark ? 'dark' : undefined}
       data-update-available

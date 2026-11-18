@@ -17,11 +17,11 @@ import type { NS } from '../locales.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { settingsStore } from '../shared/settings.ts'
 import { usePreventAutoScroll } from '../shared/preventAutoScroll.ts'
+import { markUpdateSeen, useUnseenUpdate } from '../shared/updateCheck.ts'
 import { AvailableUpdateBadge, type OpenPluginVersions } from '../ui/AvailableUpdateBadge.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import { SettingsIcon } from '../ui/SettingsIcon.tsx'
 import { panelModal } from '../panelModal/bus.ts'
-import { UpdateLogoButton } from '../changelog/ChangelogModal.tsx'
 import { promptsStore, sortPrompts, type Prompt } from './storage.ts'
 import { useSmartEnter } from './smartEnter.ts'
 import css from './smartInput.module.css'
@@ -65,7 +65,7 @@ const LIBRARY_TIP_COLOR = {
 
 /**
  * 在【命令】按钮紧邻右侧造一个 portal 挂载座。
- * 容器 display: contents，两个按钮直接成为工具行的 flex 项、
+ * 容器 display: contents，提示词按钮直接成为工具行的 flex 项、
  * 吃行自己的 16px 间距；行卸载（会话切换）时本组件同月同灭，
  * 清理函数移除容器即可。
  * @param markerRef - 渲染在槽位里的隐藏锚点，向上定位工具行。
@@ -125,6 +125,7 @@ export function PromptButton({ useInput, useSession, inputActions, t, openPlugin
   const draft = useInput(s => s.draft)
   const inputPhase = useInput(s => s.phase)
   const running = useSession(s => s.running)
+  const unseenUpdate = useUnseenUpdate()
 
   // 发送后防跳底（原 preventAutoScroll 模块，随 composer 存在期挂载）。
   usePreventAutoScroll(running, inputPhase, draft)
@@ -169,44 +170,46 @@ export function PromptButton({ useInput, useSession, inputActions, t, openPlugin
 
   if (!settings.promptButtonEnabled) return null
 
-  const buttons = (
-    <>
-      {/* 版本更新 Logo（原提示词按钮左侧的 smart-input-update-btn，有未读更新时显示） */}
-      <UpdateLogoButton t={t} />
-      <button
-        ref={btnRef}
-        type="button"
-        className={css.promptBtn}
-        aria-label={t('prompt.tooltipLibrary')}
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          tooltip.hide(true)
-          setOpen(v => !v)
-        }}
-        onMouseEnter={(e) => {
-          tooltip.show('prompt-btn-library', e.currentTarget, t('prompt.tooltipLibrary'), {
-            placement: 'top',
-            showDelay: 300,
-            noArrow: true,
-            size: 'small',
-            color: LIBRARY_TIP_COLOR,
-          })
-        }}
-        onMouseLeave={() => { tooltip.hide() }}
-      >
-        <svg className={css.promptIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-        </svg>
-      </button>
-    </>
+  const libraryLabel = unseenUpdate === null
+    ? t('prompt.tooltipLibrary')
+    : t('prompt.tooltipLibraryUpdate', { version: unseenUpdate })
+
+  const button = (
+    <button
+      ref={btnRef}
+      type="button"
+      className={css.promptBtn}
+      aria-label={libraryLabel}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        tooltip.hide(true)
+        if (unseenUpdate !== null) markUpdateSeen(unseenUpdate)
+        setOpen(v => !v)
+      }}
+      onMouseEnter={(e) => {
+        tooltip.show('prompt-btn-library', e.currentTarget, libraryLabel, {
+          placement: 'top',
+          showDelay: 300,
+          noArrow: true,
+          size: 'small',
+          color: LIBRARY_TIP_COLOR,
+        })
+      }}
+      onMouseLeave={() => { tooltip.hide() }}
+    >
+      <svg className={css.promptIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+      {unseenUpdate !== null && <span className={css.updateDot} aria-hidden="true" />}
+    </button>
   )
 
   return (
     <>
       {/* 隐藏锚点：只用来定位工具行（本体 portal 到命令按钮右侧的挂载座）。 */}
       <span ref={markerRef} hidden />
-      {seat !== null ? createPortal(buttons, seat) : buttons}
+      {seat !== null ? createPortal(button, seat) : button}
       {open
         ? (
           <PromptDropdown

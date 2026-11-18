@@ -1,10 +1,8 @@
 /**
  * Changelog 数据与已读状态（移植原 global/changelog-modal/changelog.js +
  * chrome.storage 的已读版本存储）。
- * 推送更新提示时只需修改 CHANGELOG_DATA：换 id、选 displayMode、更新条目。
+ * 发布更新日志时修改 CHANGELOG_DATA 的 id 和条目。
  */
-import { registerStorageSync } from '../shared/storageSync.ts'
-import { Bus } from '../ui/bus.ts'
 
 /** 双语条目（原 features/improvements 项）。 */
 export interface ChangelogItem {
@@ -15,8 +13,8 @@ export interface ChangelogItem {
 /** 更新内容（原 CHANGELOG_DATA）。 */
 export const CHANGELOG_DATA = {
   id: 'dsh-0.1.10',
-  /** 'icon' = 提示词按钮旁 Logo + 小红点（温和提示）；'popup' = 自动弹窗（强提醒）。 */
-  displayMode: 'icon' as 'icon' | 'popup',
+  /** 'manual' 由设置页版本号打开，'popup' 自动打开未读更新日志。 */
+  displayMode: 'manual' as 'manual' | 'popup',
 
   features: [] as readonly ChangelogItem[],
 
@@ -28,6 +26,10 @@ export const CHANGELOG_DATA = {
     {
       zh: '展开、收起或调整右侧栏宽度时，时间轴和折叠按钮会跟随对话区右边缘，避免遮挡任务管理等面板。',
       en: 'The timeline and its collapse button follow the right edge of the conversation as the right sidebar opens, closes, or resizes, keeping panels such as Task Management clear.',
+    },
+    {
+      zh: '检测到更高版本时，提示词图标会显示红点。点击图标打开提示词面板后，红点会消失，直到检测到下一个更高版本。',
+      en: 'The Prompt Library icon shows a red dot when a newer version is available. Opening the Prompt Library clears the dot until a higher version is detected.',
     },
   ] as readonly ChangelogItem[],
 }
@@ -43,25 +45,17 @@ function loadReadVersion(): string | null {
   }
 }
 
-const readBus = new Bus<string | null>(loadReadVersion())
-
-// 跨标签页同步（原 chrome.storage.onChanged 的等价物）。
-registerStorageSync(STORAGE_KEY, () => { readBus.set(loadReadVersion()) })
-
-/** 已读状态 store（供 Logo 按钮显隐订阅）。 */
+/** 本地更新日志的已读状态。 */
 export const changelogReadStore = {
-  subscribe: readBus.subscribe,
-  /** 是否有未读更新（原 hasUpdate）。 */
-  hasUpdate(): boolean {
+  isUnread(): boolean {
     const hasContent = CHANGELOG_DATA.features.length > 0 || CHANGELOG_DATA.improvements.length > 0
     if (CHANGELOG_DATA.id === '' || !hasContent) return false
-    return readBus.get() !== CHANGELOG_DATA.id
+    return loadReadVersion() !== CHANGELOG_DATA.id
   },
   /** 标记当前版本已读（原 _markAsRead）。 */
   markAsRead(): void {
     try {
       localStorage.setItem(STORAGE_KEY, CHANGELOG_DATA.id)
     } catch { /* 静默 */ }
-    readBus.set(CHANGELOG_DATA.id)
   },
 }

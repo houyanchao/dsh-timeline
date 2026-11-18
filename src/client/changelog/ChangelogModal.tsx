@@ -1,9 +1,7 @@
 /**
- * 版本更新弹窗 + 更新 Logo 按钮（移植原 global/changelog-modal +
- * prompt-button-manager 的 Logo 按钮）。
- * - changelogModal.show()：命令式打开弹窗（Logo 按钮点击 / popup 模式自动弹）。
+ * 版本更新日志弹窗（移植原 global/changelog-modal）。
+ * - changelogModal.show()：命令式打开弹窗（设置页版本号点击 / popup 模式自动弹）。
  * - ChangelogHost：挂在 UiHost 下的渲染宿主，关闭时标记已读。
- * - UpdateLogoButton：icon 模式下随提示词按钮出现的 Logo + 小红点。
  */
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -83,7 +81,7 @@ export function ChangelogHost({ t }: { readonly t: T }) {
   useEffect(() => {
     if (CHANGELOG_DATA.displayMode !== 'popup') return
     const timer = setTimeout(() => {
-      if (changelogReadStore.hasUpdate()) changelogModal.show()
+      if (changelogReadStore.isUnread()) changelogModal.show()
     }, 3000)
     return () => { clearTimeout(timer) }
   }, [])
@@ -187,34 +185,5 @@ export function ChangelogHost({ t }: { readonly t: T }) {
         </div>
       </div>
     </div>
-  )
-}
-
-/**
- * 更新 Logo 按钮（原 _createUpdateButton：icon 模式且有未读更新时显示）。
- * 原版还要求 chatTimes 有使用记录才展示；DSH 无 chatTimes 存储
- * （节点时间来自宿主快照），该门控经确认有意去除。
- * 配色走宿主 token（自带深浅两套值），故不需要主题入参。
- * @param props - 词典。
- * @returns Logo 按钮或 null。
- */
-export function UpdateLogoButton({ t }: { readonly t: T }) {
-  useSyncExternalStore(changelogReadStore.subscribe, () => changelogReadStore.hasUpdate())
-  if (CHANGELOG_DATA.displayMode !== 'icon' || !changelogReadStore.hasUpdate()) return null
-
-  return (
-    <button
-      type="button"
-      className={css.updateBtn}
-      aria-label={t('changelog.updateBtn')}
-      onClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        changelogModal.show()
-      }}
-    >
-      <img className={css.updateLogo} src={LOGO_DATA_URL} alt="logo" />
-      <span className={css.updateDot} />
-    </button>
   )
 }
