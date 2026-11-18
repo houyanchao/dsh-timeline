@@ -114,7 +114,8 @@
 
 .tab {
   position: relative;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -136,6 +137,22 @@
   min-width: 0;
   overflow: visible;
   white-space: nowrap;
+}
+
+.tabLabel {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tabs:has([data-update-available]) .tabGroup {
+  gap: 6px;
+}
+
+.tabs:has([data-update-available]) .tab {
+  gap: 2px;
+  padding-inline: 1px;
+  font-size: 12px;
 }
 
 .tabText::after {
@@ -213,6 +230,14 @@
 }
 
 /* 分享插件按钮（tabs 右端） */
+.headerActions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
 .shareBtn {
   flex-shrink: 0;
   display: flex;

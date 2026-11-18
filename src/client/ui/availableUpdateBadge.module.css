@@ -1,0 +1,66 @@
+.badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid #dedfe2;
+  border-radius: 999px;
+  background: #fff;
+  color: #62666d;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.badge:hover {
+  border-color: #c8cbd1;
+  background: #f4f5f6;
+}
+
+.badge:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+}
+
+.release {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #aa520b;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.version {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge[data-compact] {
+  gap: 4px;
+  padding: 2px 5px;
+  font-size: 10px;
+}
+
+.badge[data-compact] .version {
+  max-width: 9ch;
+}
+
+.badge[data-theme='dark'] {
+  border-color: #48484d;
+  background: #303033;
+  color: #c9cbd0;
+}
+
+.badge[data-theme='dark']:hover {
+  border-color: #5b5b61;
+  background: #38383b;
+}
+
+.badge[data-theme='dark'] .release {
+  color: #f4b247;
+}

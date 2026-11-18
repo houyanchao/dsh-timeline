@@ -228,23 +228,25 @@
 }
 
 .header {
-  position: relative;
   height: 56px;
-  padding: 0 24px;
-  display: flex;
+  padding: 0 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   align-items: center;
-  justify-content: center;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
   background: #fafafa;
 }
 
-/* 分享按钮（原 .ait-panel-modal-share + header-actions 的绝对定位） */
+.headerActions {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .shareBtn {
-  position: absolute;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
   width: 32px;
   height: 32px;
   display: flex;
@@ -265,7 +267,7 @@
 }
 
 .shareBtn:active {
-  transform: translateY(-50%) scale(0.96);
+  transform: scale(0.96);
 }
 
 .shareBtn svg {
@@ -274,10 +276,14 @@
 }
 
 .title {
+  grid-column: 2;
   margin: 0;
+  overflow: hidden;
   font-size: 20px;
   font-weight: 600;
   color: #333;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content {

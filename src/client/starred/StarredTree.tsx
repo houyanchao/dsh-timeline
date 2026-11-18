@@ -1,7 +1,7 @@
 /**
  * 收藏树：移植原扩展 StarredTreeRenderer（sidebar 场景）。
  * - 两级文件夹 + 收藏项层级渲染，置顶排序、展开态持久化；
- * - 单击导航（同会话滚动 / 跨会话 openSession + 待滚动目标）、双击编辑；
+ * - 单击导航（打开会话并跳转到收藏的提问）、双击编辑；
  * - hover 操作（… 菜单：置顶/编辑/移动/复制/取消收藏，文件夹：新建子级/
  *   置顶/重命名/删除）；名称溢出时右侧 tooltip；
  * - 收藏项自定义鼠标拖拽（5px 阈值 + 幽灵 + 精确落点指示 + 拖出取消收藏），
@@ -116,12 +116,12 @@ export function StarredTree({
     dataRef.current = { items, folders }
   }
 
-  const ctxRef = useRef({ currentSessionId, openSession, onAfterNavigate, resolveSessionTitle, t })
-  ctxRef.current = { currentSessionId, openSession, onAfterNavigate, resolveSessionTitle, t }
+  const ctxRef = useRef({ openSession, onAfterNavigate, resolveSessionTitle, t })
+  ctxRef.current = { openSession, onAfterNavigate, resolveSessionTitle, t }
 
   // ==== 导航（原 _navigateToItem，URL 语义换成 sessionId） ====
   const navigateToItem = (item: StarItem): void => {
-    const { currentSessionId: cur, openSession: open, onAfterNavigate: after } = ctxRef.current
+    const { openSession: open, onAfterNavigate: after } = ctxRef.current
     // 闪记笔记项：打开闪记面板并定位到笔记（原 notepad: 前缀分支）。
     if (item.kind === 'note') {
       notepad.openNote(item.nodeKey)
@@ -130,7 +130,7 @@ export function StarredTree({
     }
     if (item.kind === 'node') pendingNavigateStore.set({ sessionId: item.sessionId, nodeKey: item.nodeKey })
     else pendingNavigateStore.set(null)
-    if (item.sessionId !== cur) open(item.sessionId)
+    open(item.sessionId)
     after()
   }
 

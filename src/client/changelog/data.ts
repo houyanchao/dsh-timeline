@@ -14,46 +14,31 @@ export interface ChangelogItem {
 
 /** 更新内容（原 CHANGELOG_DATA）。 */
 export const CHANGELOG_DATA = {
-  id: 'dsh-2026081801',
+  id: 'dsh-0.1.9',
   /** 'icon' = 提示词按钮旁 Logo + 小红点（温和提示）；'popup' = 自动弹窗（强提醒）。 */
   displayMode: 'icon' as 'icon' | 'popup',
 
   features: [
     {
-      zh: '时间轴导航：右侧轴条按提问定位，点击直达，支持 ↑ / ↓ 键跳转，长按节点标记重点',
-      en: 'Timeline navigation: locate any question on the right-hand rail, jump with a click or the ↑ / ↓ keys, and long-press a node to mark it as a key point',
-    },
-    {
-      zh: '收藏文件夹：整段对话、单条提问、闪记都能收进两级文件夹，拖拽即可整理',
-      en: 'Starred folders: file whole conversations, single questions, and notes into two-level folders, and drag to reorganize',
-    },
-    {
-      zh: '对话导出：支持 Markdown、TXT、JSON、CSV、PNG、PDF，数学公式照常渲染',
-      en: 'Conversation export: Markdown, TXT, JSON, CSV, PNG, and PDF, with math formulas rendered as usual',
-    },
-    {
-      zh: '复制公式：点击公式即可复制 LaTeX 或 MathML，可直接粘贴进 Word',
-      en: 'Formula copy: click a formula to copy it as LaTeX or MathML, ready to paste into Word',
-    },
-    {
-      zh: '提示词库：常用提示词存下来，在输入框旁一键调用',
-      en: 'Prompt library: save frequently used prompts and insert them from beside the composer in one click',
-    },
-    {
-      zh: '闪记：随手记录灵感，可归档到收藏文件夹',
-      en: 'Notepad: jot down ideas at any time and file them into starred folders',
-    },
-    {
-      zh: '输入增强：Enter 换行、双击 Enter 发送，选中文字可快速追问，发送后停在当前阅读位置',
-      en: 'Composer enhancements: Enter for a new line, double Enter to send, quick follow-up from selected text, and no jump to the bottom after sending',
-    },
-    {
-      zh: '提醒与备份：回复完成弹窗和声音提醒，插件数据一键导出导入',
-      en: 'Alerts and backup: toast and sound when a reply finishes, plus one-click export and import of all plugin data',
+      zh: '提示词面板和插件设置会在 npm 上有更高版本时显示更新提示。点击提示可打开 DSH 插件详情，在那里确认更新。',
+      en: 'The prompt panel and plugin settings show an update badge when a newer version is available on npm. Click it to open the plugin details in DSH and confirm the update there.',
     },
   ] as readonly ChangelogItem[],
 
-  improvements: [] as readonly ChangelogItem[],
+  improvements: [
+    {
+      zh: '修复新版 DSH 中侧栏和设置页的收藏项打不开的问题。整段会话可以直接打开，单条提问会跳转到对应位置。',
+      en: 'Fixed starred items failing to open from the sidebar and settings in newer DSH versions. Full conversations open directly, and starred questions jump to the saved message.',
+    },
+    {
+      zh: '恢复当前会话的收藏高亮。切换会话时会关闭上一段会话的浮层。',
+      en: 'Restored highlighting for starred items in the current conversation. Switching conversations closes overlays from the previous conversation.',
+    },
+    {
+      zh: '设置页和更新日志统一显示插件的实际版本号。',
+      en: 'Plugin settings and the changelog now show the actual package version.',
+    },
+  ] as readonly ChangelogItem[],
 }
 
 /** 已读版本存储 key（原 ait-changelog-read-version）。 */

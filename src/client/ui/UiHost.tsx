@@ -7,6 +7,7 @@ import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } fro
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
+import { selectCurrentSessionId } from '../shared/currentSession.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { FolderEditModalHost } from '../starred/FolderEditModal.tsx'
 import { StarEditModalHost } from '../timeline/StarModal.tsx'
@@ -14,6 +15,7 @@ import { NotepadHost } from '../notepad/NotepadPanel.tsx'
 import { panelModal } from '../panelModal/bus.ts'
 import { ChangelogHost } from '../changelog/ChangelogModal.tsx'
 import { FormulaHost } from '../formula/FormulaHost.tsx'
+import type { OpenPluginVersions } from './AvailableUpdateBadge.tsx'
 import { ToastHost, toast } from './toast.tsx'
 import { TooltipHost, tooltip } from './tooltip.tsx'
 import { DropdownHost, dropdown } from './dropdown.tsx'
@@ -25,8 +27,9 @@ const PanelHost = lazy(async () => ({ default: (await import('../panelModal/Pane
 
 /** UiHost props（root 槽位运行时 + 词典 + 设置面板收藏 tab 的会话导航）。 */
 export type UiHostProps = PropsRuntime<'shell.overlay'> & PropsLocale<typeof NS> & {
-  /** 打开指定会话（ctx.sessions.open）。 */
+  /** 在主视图中打开指定会话。 */
   readonly openSession: (sessionId: string) => void
+  readonly openPluginVersions: OpenPluginVersions
 }
 
 /**
@@ -34,8 +37,8 @@ export type UiHostProps = PropsRuntime<'shell.overlay'> & PropsLocale<typeof NS>
  * @param props - 词典 + 会话导航。
  * @returns 各命令式 UI 的渲染宿主。
  */
-export function UiHost({ t, useSessions, openSession }: UiHostProps) {
-  const currentSessionId = useSessions(s => s.current)
+export function UiHost({ t, useSessions, openSession, openPluginVersions }: UiHostProps) {
+  const currentSessionId = useSessions(selectCurrentSessionId)
   const request = useSyncExternalStore(panelModal.subscribe, panelModal.get)
   const [panelRequested, setPanelRequested] = useState(false)
   useEffect(() => {
@@ -89,7 +92,11 @@ export function UiHost({ t, useSessions, openSession }: UiHostProps) {
       <StarEditModalHost t={t} dark={dark} />
       <NotepadHost t={t} dark={dark} />
       {panelRequested
-        ? <Suspense fallback={null}><PanelHost t={t} currentSessionId={currentSessionId} openSession={openSession} /></Suspense>
+        ? (
+          <Suspense fallback={null}>
+            <PanelHost t={t} currentSessionId={currentSessionId} openSession={openSession} openPluginVersions={openPluginVersions} />
+          </Suspense>
+        )
         : null}
       <ChangelogHost t={t} />
       {/* 公式复制（hover 高亮 + tooltip + 点击复制 LaTeX/MathML）。 */}

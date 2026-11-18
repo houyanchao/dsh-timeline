@@ -8,6 +8,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
+import { PLUGIN_VERSION } from '../shared/version.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { tooltip } from '../ui/tooltip.tsx'
 import { Bus } from '../ui/bus.ts'
@@ -17,8 +18,6 @@ import css from './changelog.module.css'
 
 type T = TranslateNS<typeof NS>
 
-/** 插件版本（原 chrome.runtime.getManifest().version）。 */
-const VERSION = '0.1.0'
 const DOCS_URL = 'https://timeline4ai.com/#/guide?section=timeline'
 const GITHUB_URL = 'https://github.com/houyanchao/dsh-timeline'
 
@@ -128,7 +127,7 @@ export function ChangelogHost({ t }: { readonly t: T }) {
             <div className={css.headerContent}>
               <div className={css.title}>
                 {t('changelog.title')}
-                <span className={css.versionBadge}>{`v${VERSION}`}</span>
+                <span className={css.versionBadge}>{`v${PLUGIN_VERSION}`}</span>
               </div>
               <div className={css.subtitle}>
                 {t('changelog.subtitle')}

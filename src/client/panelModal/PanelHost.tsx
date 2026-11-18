@@ -8,9 +8,11 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
+import { PLUGIN_VERSION } from '../shared/version.ts'
 import { settingsStore, type SmartEnterMode } from '../shared/settings.ts'
 import { ACTIVE_COLOR_PALETTE, DEFAULT_ACTIVE_COLOR_ID, paletteEntryToCss } from '../shared/palette.ts'
 import { playAiCompleteSound, showAiCompleteToast } from '../shared/aiCompleteReminder.ts'
+import { AvailableUpdateBadge, type OpenPluginVersions } from '../ui/AvailableUpdateBadge.tsx'
 import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import { dropdown } from '../ui/dropdown.tsx'
@@ -29,8 +31,6 @@ import css from './panel.module.css'
 
 type T = TranslateNS<typeof NS>
 
-/** 插件版本（原 footer 显示 chrome.runtime.getManifest().version）。 */
-const VERSION = '0.1.0'
 /** 分享按钮跳转地址（原 _getStoreDetailUrl 的商店详情页；DSH 无商店，指向 GitHub）。 */
 const SHARE_URL = 'https://github.com/houyanchao/dsh-timeline'
 
@@ -39,6 +39,7 @@ export interface PanelHostProps {
   readonly t: T
   readonly currentSessionId: string | undefined
   readonly openSession: (sessionId: string) => void
+  readonly openPluginVersions: OpenPluginVersions
 }
 
 /** 「标记重点」提示 toast 的黑白反色（原 TimelineSettingsTab 内联色值；黑底改取宿主 tooltip 底板 token）。 */
@@ -142,7 +143,7 @@ const TABS: readonly { id: PanelTab; labelKey: 'panel.tabAbout' | 'panel.tabTime
  * @param props - 词典 + 会话导航。
  * @returns 面板或 null。
  */
-export function PanelHost({ t, currentSessionId, openSession }: PanelHostProps) {
+export function PanelHost({ t, currentSessionId, openSession, openPluginVersions }: PanelHostProps) {
   const request = useSyncExternalStore(panelModal.subscribe, () => panelModal.get())
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<PanelTab>('timeline')
@@ -225,7 +226,7 @@ export function PanelHost({ t, currentSessionId, openSession }: PanelHostProps) 
                   }
                 : {})}
             >
-              {`v${VERSION}`}
+              {`v${PLUGIN_VERSION}`}
             </div>
           </div>
         </div>
@@ -234,27 +235,34 @@ export function PanelHost({ t, currentSessionId, openSession }: PanelHostProps) 
           <div className={css.header}>
             <h2 className={css.title}>{t(TABS.find(tab => tab.id === activeTab)?.labelKey ?? 'panel.tabTimeline')}</h2>
             {/* 头部动作区（原 header-actions；语言切换由宿主 locale 服务承担，不迁移）。 */}
-            <button
-              type="button"
-              className={css.shareBtn}
-              aria-label="Timeline"
-              onMouseEnter={(e) => {
-                tooltip.showOverlay(e.currentTarget, t('prompt.share'), { placement: 'bottom' })
-              }}
-              onMouseLeave={() => { tooltip.hideOverlay() }}
-              onClick={(e) => {
-                e.stopPropagation()
-                window.open(SHARE_URL, '_blank', 'noopener,noreferrer')
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <path d="M8.59 13.51 15.42 17.49" />
-                <path d="M15.41 6.51 8.59 10.49" />
-              </svg>
-            </button>
+            <div className={css.headerActions}>
+              <AvailableUpdateBadge
+                label={t('update.available')}
+                title={t('update.openVersions')}
+                onClick={() => { openPluginVersions(close) }}
+              />
+              <button
+                type="button"
+                className={css.shareBtn}
+                aria-label="Timeline"
+                onMouseEnter={(e) => {
+                  tooltip.showOverlay(e.currentTarget, t('prompt.share'), { placement: 'bottom' })
+                }}
+                onMouseLeave={() => { tooltip.hideOverlay() }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.open(SHARE_URL, '_blank', 'noopener,noreferrer')
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <path d="M8.59 13.51 15.42 17.49" />
+                  <path d="M15.41 6.51 8.59 10.49" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div className={css.content}>
             {activeTab === 'about' ? <AboutTab t={t} /> : null}

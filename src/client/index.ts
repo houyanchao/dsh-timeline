@@ -25,6 +25,7 @@ import { StarredPanel } from './starred/StarredPanel.tsx'
 import { PromptButton } from './smartInputBox/PromptButton.tsx'
 import { QuickAskButton } from './quickAsk/QuickAskButton.tsx'
 import { AssistantExportActions, ExportAction } from './conversationExport/ExportAction.tsx'
+import { toast } from './ui/toast.tsx'
 import { UiHost } from './ui/UiHost.tsx'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -37,6 +38,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export type { TimelineActionProps } from './timeline/TimelineAction.tsx'
 export { createTimelineStore } from './timeline/store.ts'
 
+interface WorkspaceNavigation {
+  openSession(sessionId: SessionId): void
+}
+
+interface PluginNavigation {
+  openBundle(packageName: string): void
+}
+
 /** 词典注册、槽位贡献、会话导航、Conversation 装配与主题服务。 */
 export const inject = ['slots', 'locale', 'sessions', 'theme', 'uiConversation']
 
@@ -45,6 +54,33 @@ export const inject = ['slots', 'locale', 'sessions', 'theme', 'uiConversation']
  * @param ctx - 客户端根上下文。
  */
 export function apply(ctx: ClientContext): void {
+  const openSession = (sessionId: string): void => {
+    const id = sessionId as SessionId
+    // 新版 DSH 由 Workspace 打开会话并切回主视图；旧版仍可使用 sessions.open。
+    const workspace = ctx.get('uiWorkspace') as WorkspaceNavigation | undefined
+    if (typeof workspace?.openSession === 'function') {
+      workspace.openSession(id)
+      return
+    }
+    const sessions = ctx.sessions
+    if ('open' in sessions && typeof sessions.open === 'function') {
+      sessions.open(id)
+      ctx.get('layout')?.selectPanel(null)
+      return
+    }
+    throw new Error('dsh-timeline: session navigation is unavailable')
+  }
+
+  const openPluginVersions = (closePanel: () => void): void => {
+    const navigation = ctx.get('pluginNavigation') as PluginNavigation | undefined
+    if (typeof navigation?.openBundle !== 'function') {
+      toast.warning(ctx.locale.bind(NS)('update.versionsUnavailable'))
+      return
+    }
+    closePanel()
+    navigation.openBundle('dsh-timeline')
+  }
+
   bindTheme(ctx)
   bindStorageSync(ctx)
   ctx.effect(() => () => { pendingNavigateStore.set(null) }, 'dsh-timeline: navigation cleanup')
@@ -79,9 +115,7 @@ export function apply(ctx: ClientContext): void {
       name: 'shell.overlay',
       id: 'dsh-timeline-ui',
       locale: NS,
-      inject: () => ({
-        openSession: (sessionId: string) => { ctx.sessions.open(sessionId as SessionId) },
-      }),
+      inject: () => ({ openSession, openPluginVersions }),
     }, UiHost),
   )
   // 收藏列表：挂在侧栏脚槽位，实际 portal 到工作区上方。
@@ -91,9 +125,7 @@ export function apply(ctx: ClientContext): void {
       name: 'sidebar.footer.action',
       id: 'dsh-timeline-starred',
       locale: NS,
-      inject: () => ({
-        openSession: (sessionId: string) => { ctx.sessions.open(sessionId as SessionId) },
-      }),
+      inject: () => ({ openSession }),
     }, StarredPanel),
   )
   // 提示词按钮（composer 工具行）+ 智能回车（随组件挂载）。
@@ -103,6 +135,7 @@ export function apply(ctx: ClientContext): void {
       name: 'conversation.input.left',
       id: 'dsh-timeline-prompt',
       locale: NS,
+      inject: () => ({ openPluginVersions }),
     }, PromptButton),
   )
   // 追问：选中会话正文后浮出「追问」按钮，引用格式插入输入框

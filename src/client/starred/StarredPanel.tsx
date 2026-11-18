@@ -6,6 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { NS } from '../locales.ts'
+import { selectCurrentSessionId } from '../shared/currentSession.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { settingsStore } from '../shared/settings.ts'
 import { SidebarFolderSection } from './SidebarFolderSection.tsx'
@@ -14,7 +15,7 @@ import { SessionStarMenu } from './SessionStarMenu.tsx'
 
 /** 注入面（activate 时由 ctx 提供）。 */
 export interface StarredPanelInject {
-  /** 打开指定会话（ctx.sessions.open）。 */
+  /** 在主视图中打开指定会话。 */
   readonly openSession: (sessionId: string) => void
 }
 
@@ -31,7 +32,7 @@ export type StarredPanelProps =
  */
 export function StarredPanel({ useSessions, openSession, t, wide }: StarredPanelProps) {
   const [dark, setDark] = useState(() => detectDarkTheme())
-  const currentSessionId = useSessions(s => s.current)
+  const currentSessionId = useSessions(selectCurrentSessionId)
   const sessionById = useSessions(s => s.byId)
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
 

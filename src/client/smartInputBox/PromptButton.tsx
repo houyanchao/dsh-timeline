@@ -17,6 +17,7 @@ import type { NS } from '../locales.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { settingsStore } from '../shared/settings.ts'
 import { usePreventAutoScroll } from '../shared/preventAutoScroll.ts'
+import { AvailableUpdateBadge, type OpenPluginVersions } from '../ui/AvailableUpdateBadge.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import { SettingsIcon } from '../ui/SettingsIcon.tsx'
 import { panelModal } from '../panelModal/bus.ts'
@@ -109,14 +110,16 @@ function useCommandSideSeat(markerRef: RefObject<HTMLElement | null>, enabled: b
 }
 
 /** 完整 props：输入工具行槽位运行时 + 词典。 */
-export type PromptButtonProps = PropsRuntime<'conversation.input.left'> & PropsLocale<typeof NS>
+export type PromptButtonProps = PropsRuntime<'conversation.input.left'> & PropsLocale<typeof NS> & {
+  readonly openPluginVersions: OpenPluginVersions
+}
 
 /**
  * 提示词按钮（含下拉与智能回车挂载）。
  * @param props - 槽位运行时 + 词典。
  * @returns 提示词按钮；设置关闭时不渲染。
  */
-export function PromptButton({ useInput, useSession, inputActions, t }: PromptButtonProps) {
+export function PromptButton({ useInput, useSession, inputActions, t, openPluginVersions }: PromptButtonProps) {
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
   const prompts = useSyncExternalStore(promptsStore.subscribe, () => promptsStore.getAll())
   const draft = useInput(s => s.draft)
@@ -212,6 +215,7 @@ export function PromptButton({ useInput, useSession, inputActions, t }: PromptBu
             prompts={prompts}
             preventAutoScrollEnabled={settings.preventAutoScrollEnabled}
             t={t}
+            openPluginVersions={openPluginVersions}
             onClose={() => { setOpen(false) }}
             onItemClick={(p) => {
               setOpen(false)
@@ -230,12 +234,13 @@ interface PromptDropdownProps {
   readonly prompts: readonly Prompt[]
   readonly preventAutoScrollEnabled: boolean
   readonly t: PromptButtonProps['t']
+  readonly openPluginVersions: OpenPluginVersions
   readonly onClose: () => void
   readonly onItemClick: (prompt: Prompt) => void
 }
 
 /** 提示词下拉面板（原 createPromptDropdownUI，portal 到 body）。 */
-function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, onClose, onItemClick }: PromptDropdownProps) {
+function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, openPluginVersions, onClose, onItemClick }: PromptDropdownProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<'prompts' | 'common-settings'>('prompts')
@@ -291,11 +296,14 @@ function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, on
     ? sorted
     : sorted.filter(p => p.name.toLowerCase().includes(q) || p.content.toLowerCase().includes(q))
 
-  const openManage = (): void => {
-    // 「+」图标 hover 中的「添加提示词」mini tooltip（showOverlay）靠 mouseleave
-    // 关闭，而点击后下拉整体卸载、mouseleave 不再触发，须在此强清两条总线。
+  const closeForNavigation = (): void => {
+    // 下拉卸载时不会触发 mouseleave，导航前主动清理提示。
     tooltip.forceHideAll()
     onClose()
+  }
+
+  const openManage = (): void => {
+    closeForNavigation()
     panelModal.show('prompt')
   }
 
@@ -315,7 +323,7 @@ function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, on
               className={activeTab === 'prompts' ? `${css.tab} ${css.tabActive}` : css.tab}
               onClick={() => { setActiveTab('prompts') }}
             >
-              <span className={css.tabText}>{t('prompt.title')}</span>
+              <span className={css.tabText}><span className={css.tabLabel}>{t('prompt.title')}</span></span>
               <span
                 className={css.tabIcon}
                 aria-label={t('prompt.add')}
@@ -338,15 +346,13 @@ function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, on
               className={activeTab === 'common-settings' ? `${css.tab} ${css.tabActive}` : css.tab}
               onClick={() => { setActiveTab('common-settings') }}
             >
-              <span className={css.tabText}>{t('prompt.commonSettingsTab')}</span>
+              <span className={css.tabText}><span className={css.tabLabel}>{t('prompt.commonSettingsTab')}</span></span>
               <span
                 className={css.tabIcon}
                 aria-label={t('prompt.allSettings')}
                 onClick={(e) => {
                   e.stopPropagation()
-                  // 同 openManage：「全部设置」mini tooltip 随下拉卸载后无 mouseleave 兜底，须强清。
-                  tooltip.forceHideAll()
-                  onClose()
+                  closeForNavigation()
                   panelModal.show('timeline')
                 }}
                 onMouseEnter={(e) => {
@@ -358,27 +364,36 @@ function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, on
               </span>
             </button>
           </div>
-          <button
-            type="button"
-            className={css.shareBtn}
-            aria-label={t('prompt.share')}
-            onClick={(e) => {
-              e.stopPropagation()
-              openExternalUrl(GITHUB_URL)
-            }}
-            onMouseEnter={(e) => {
-              tooltip.showOverlay(e.currentTarget, t('prompt.share'), { placement: 'top', theme: dark ? 'dark' : 'light' })
-            }}
-            onMouseLeave={() => { tooltip.hideOverlay() }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <circle cx="18" cy="5" r="3" />
-              <circle cx="6" cy="12" r="3" />
-              <circle cx="18" cy="19" r="3" />
-              <path d="M8.59 13.51 15.42 17.49" />
-              <path d="M15.41 6.51 8.59 10.49" />
-            </svg>
-          </button>
+          <div className={css.headerActions}>
+            <AvailableUpdateBadge
+              label={t('update.availableCompact')}
+              title={t('update.openVersions')}
+              onClick={() => { openPluginVersions(closeForNavigation) }}
+              compact
+              dark={dark}
+            />
+            <button
+              type="button"
+              className={css.shareBtn}
+              aria-label={t('prompt.share')}
+              onClick={(e) => {
+                e.stopPropagation()
+                openExternalUrl(GITHUB_URL)
+              }}
+              onMouseEnter={(e) => {
+                tooltip.showOverlay(e.currentTarget, t('prompt.share'), { placement: 'top', theme: dark ? 'dark' : 'light' })
+              }}
+              onMouseLeave={() => { tooltip.hideOverlay() }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <path d="M8.59 13.51 15.42 17.49" />
+                <path d="M15.41 6.51 8.59 10.49" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* ===== 提示词面板 ===== */}
