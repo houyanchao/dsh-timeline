@@ -1557,7 +1557,7 @@
 .aboutShareActions {
   display: flex;
   flex-direction: row;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: flex-start;
   gap: 8px;
 }
@@ -1568,7 +1568,7 @@
   justify-content: center;
   gap: 5px;
   box-sizing: border-box;
-  width: 132px;
+  min-width: 132px;
   flex: none;
   padding: 7px 10px;
   background: linear-gradient(180deg, #ffffff 0%, #eef0f4 50%, #e2e5eb 100%);

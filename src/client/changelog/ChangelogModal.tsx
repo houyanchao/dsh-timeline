@@ -10,6 +10,7 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
 import { PLUGIN_VERSION } from '../shared/version.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
+import { BrowserStoreLinks } from '../ui/BrowserStoreLinks.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import { Bus } from '../ui/bus.ts'
 import { CHANGELOG_DATA, changelogReadStore, type ChangelogItem } from './data.ts'
@@ -137,6 +138,9 @@ export function ChangelogHost({ t }: { readonly t: T }) {
           <div className={css.body}>
             <Section title={t('changelog.features')} emoji="✨" items={CHANGELOG_DATA.features} lang={lang} />
             <Section title={t('changelog.improvements')} emoji="🔧" items={CHANGELOG_DATA.improvements} lang={lang} />
+            <div className={css.browserStoreActions}>
+              <BrowserStoreLinks t={t} className={css.browserStoreBtn} />
+            </div>
           </div>
           <div className={css.ratingBar}>
             <span className={css.ratingText}>{t('changelog.ratingText')}</span>

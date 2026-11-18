@@ -1,6 +1,6 @@
 /**
- * 会话头部入口：时间轴显隐开关按钮，并在开启时把时间轴根容器
- * portal 到 document.body（fixed 定位在会话区右侧）。
+ * 会话头部收藏入口。时间轴开启时将时间轴根容器 portal 到 document.body，
+ * 关闭时从会话头部打开提问收藏菜单。
  * 数据全部来自 useSession 的 Chat 快照（无 DOM 爬取），
  * 显隐/折叠偏好与收藏标记走会话级持久化 store。
  */
@@ -18,6 +18,7 @@ import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import type { createTimelineStore, StarRecord } from './store.ts'
 import { TimelineRoot } from './TimelineRoot.tsx'
+import { QuestionStarAction } from './QuestionStarAction.tsx'
 import { starEditModal } from './StarModal.tsx'
 import type { TimelineItem } from './TimelineBar.tsx'
 import { findQuestionTarget, navigateToQuestion } from './navigation.ts'
@@ -139,7 +140,7 @@ function sameTimelineItems(previous: readonly TimelineItem[], next: readonly Tim
 /**
  * 会话头部的时间轴入口。
  * @param props - 槽位运行时 + store + 词典。
- * @returns 开关按钮；开启且有提问时渲染时间轴。
+ * @returns 收藏入口；开启且有提问时渲染时间轴。
  */
 export function TimelineAction({ sessionId, useChat, useSession, useSessions, useStore, actions, loadSavedQuestion, t }: TimelineActionProps) {
   const items = useChat(s => collectItems(s.order, s.nodes, t), sameTimelineItems)
@@ -202,8 +203,21 @@ export function TimelineAction({ sessionId, useChat, useSession, useSessions, us
     })
   }
 
-  // 显示时间轴总开关（设置面板控制，头部不再放显隐按钮）。
-  if (!settings.timelineEnabled) return <><span ref={scopeAnchor} hidden /></>
+  const saveQuestionStar = (item: TimelineItem, title: string, folderId: string | null): void => {
+    starredStore.addStar({
+      key: nodeStarKey(sessionId, item.key),
+      kind: 'node',
+      sessionId,
+      nodeKey: item.key,
+      title,
+      timestamp: item.time,
+      folderId,
+    })
+    toast.success(t('starred.starSuccess'))
+  }
+  const removeQuestionStar = (item: TimelineItem): void => {
+    starredStore.removeStar(nodeStarKey(sessionId, item.key))
+  }
 
   const chatStarLabel = chatStarred ? t('starred.unstar') : t('starred.starChat')
 
@@ -240,7 +254,10 @@ export function TimelineAction({ sessionId, useChat, useSession, useSessions, us
         </svg>
         <span>{t('starred.starChatLabel')}</span>
       </button>
-      {scope !== null && items.length > 0
+      {!settings.timelineEnabled && scope !== null && items.length > 0
+        ? <QuestionStarAction key={sessionId} items={items} starred={starred} onStar={saveQuestionStar} onUnstar={removeQuestionStar} t={t} />
+        : null}
+      {settings.timelineEnabled && scope !== null && items.length > 0
         ? createPortal(
             <TimelineRoot
               key={sessionId}
@@ -252,19 +269,8 @@ export function TimelineAction({ sessionId, useChat, useSession, useSessions, us
               running={running}
               collapsed={collapsed}
               onSetCollapsed={(next) => { actions.setCollapsed(next) }}
-              onStar={(item, title, folderId) => {
-                starredStore.addStar({
-                  key: nodeStarKey(sessionId, item.key),
-                  kind: 'node',
-                  sessionId,
-                  nodeKey: item.key,
-                  title,
-                  timestamp: item.time,
-                  folderId,
-                })
-                toast.success(t('starred.starSuccess'))
-              }}
-              onUnstar={(item) => { starredStore.removeStar(nodeStarKey(sessionId, item.key)) }}
+              onStar={saveQuestionStar}
+              onUnstar={removeQuestionStar}
               onTogglePin={(item) => {
                 pinsStore.toggle({
                   key: `${sessionId}:${item.key}`,

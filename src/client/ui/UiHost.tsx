@@ -10,7 +10,7 @@ import type { NS } from '../locales.ts'
 import { selectCurrentSessionId } from '../shared/currentSession.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { FolderEditModalHost } from '../starred/FolderEditModal.tsx'
-import { StarEditModalHost } from '../timeline/StarModal.tsx'
+import { StarEditModalHost, starEditModal } from '../timeline/StarModal.tsx'
 import { NotepadHost } from '../notepad/NotepadPanel.tsx'
 import { panelModal } from '../panelModal/bus.ts'
 import { ChangelogHost } from '../changelog/ChangelogModal.tsx'
@@ -51,6 +51,7 @@ export function UiHost({ t, useSessions, openSession, openPluginVersions }: UiHo
     dropdown.forceHideAll()
     popconfirm.hide(false)
     inputModal.forceClose()
+    starEditModal.forceClose()
   }, [])
   const [dark, setDark] = useState(() => detectDarkTheme())
   useEffect(() => observeTheme(() => { setDark(detectDarkTheme()) }), [])
@@ -67,6 +68,7 @@ export function UiHost({ t, useSessions, openSession, openPluginVersions }: UiHo
     dropdown.forceHideAll()
     popconfirm.hide(false)
     inputModal.forceClose()
+    starEditModal.forceClose()
   }, [currentSessionId])
 
   // The shell overlay has its own stacking context. Mount the plugin's

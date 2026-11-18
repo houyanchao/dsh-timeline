@@ -13,6 +13,7 @@ import { settingsStore, type SmartEnterMode } from '../shared/settings.ts'
 import { ACTIVE_COLOR_PALETTE, DEFAULT_ACTIVE_COLOR_ID, paletteEntryToCss } from '../shared/palette.ts'
 import { playAiCompleteSound, showAiCompleteToast } from '../shared/aiCompleteReminder.ts'
 import { AvailableUpdateBadge, type OpenPluginVersions } from '../ui/AvailableUpdateBadge.tsx'
+import { BrowserStoreLinks } from '../ui/BrowserStoreLinks.tsx'
 import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import { dropdown } from '../ui/dropdown.tsx'
@@ -373,59 +374,16 @@ function PlatformInfo() {
 
 // ==================== 关于插件 tab ====================
 
-/** 原 AboutTab 的各外链（商店/文档/仓库）与反馈邮箱。 */
+/** 关于页的文档、仓库与反馈入口。 */
 const ABOUT_LINKS = {
   docs: 'https://timeline4ai.com/#/guide?section=timeline',
-  chrome: 'https://chromewebstore.google.com/detail/fgebdnlceacaiaeikopldglhffljjlhh?utm_source=item-share-cb',
-  edge: 'https://microsoftedge.microsoft.com/addons/detail/ai-timeline%EF%BC%9Agemini%E3%80%81chatgp/ekednjjojnhlajfobalaaihkibbdcbab',
-  firefox: 'https://addons.mozilla.org/en-US/firefox/addon/ai-timeline/',
   github: 'https://github.com/houyanchao/dsh-timeline',
   issues: 'https://github.com/houyanchao/dsh-timeline/issues',
   email: 'houyanchao@outlook.com',
 } as const
 
-/** 当前浏览器对应的商店入口（Edge UA 含 Chrome，须先判 Edge）。 */
-function detectBrowserStore(): { readonly href: string; readonly icon: React.ReactNode } {
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-  if (/Edg/i.test(ua)) {
-    return {
-      href: ABOUT_LINKS.edge,
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49" />
-        </svg>
-      ),
-    }
-  }
-  if (/Firefox/i.test(ua)) {
-    return {
-      href: ABOUT_LINKS.firefox,
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zM17.9 17.39c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C18.93 5.77 22 8.65 22 12c0 2.08-.8 3.97-2.1 5.39z" />
-        </svg>
-      ),
-    }
-  }
-  return {
-    href: ABOUT_LINKS.chrome,
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden>
-        <circle cx="12" cy="12" r="10" />
-        <circle cx="12" cy="12" r="4" />
-        <line x1="21.17" y1="8" x2="12" y2="8" />
-        <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
-        <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
-      </svg>
-    ),
-  }
-}
-
 /** 关于插件 tab（移植原 tabs/about：分享按钮组 + 简介/数据安全/提需求）。 */
 function AboutTab({ t }: { readonly t: T }) {
-  const browserStore = detectBrowserStore()
   const copyEmail = (): void => {
     void navigator.clipboard.writeText(ABOUT_LINKS.email).then(() => {
       toast.success(t('about.copied'))
@@ -444,10 +402,7 @@ function AboutTab({ t }: { readonly t: T }) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>
           {t('about.btnGithub')}
         </a>
-        <a href={browserStore.href} target="_blank" rel="noopener noreferrer" className={css.aboutShareActionBtn}>
-          {browserStore.icon}
-          {t('about.btnBrowser')}
-        </a>
+        <BrowserStoreLinks t={t} className={css.aboutShareActionBtn} />
       </div>
 
       {/* 插件简介 */}

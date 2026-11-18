@@ -3,7 +3,7 @@
  * 轴条），以及三项全局交互——右缘折叠按钮（hover 时浮现）、问题列表与
  * 轴条互斥切换、上下方向键导航到上/下一个提问。
  */
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
 import { findMessageElement, type ConversationDOM } from '../shared/conversationDom.ts'
@@ -58,6 +58,7 @@ function isEditableFocused(): boolean {
  * @returns wrapper + 折叠按钮（portal 到 body 的 fixed 布局由外层完成）。
  */
 export function TimelineRoot({ scope, items, starred, pinned, running, collapsed, navigateToItem, onSetCollapsed, onStar, onUnstar, onTogglePin, t }: TimelineRootProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
   const [dark, setDark] = useState(() => detectDarkTheme())
   const [listOpen, setListOpen] = useState(false)
   const [activeKey, setActiveKey] = useState<string | null>(null)
@@ -76,6 +77,28 @@ export function TimelineRoot({ scope, items, starred, pinned, running, collapsed
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
   const arrowNavEnabledRef = useRef(settings.arrowKeysNavEnabled)
   arrowNavEnabledRef.current = settings.arrowKeysNavEnabled
+
+  // 宿主展开、收起或拖动右侧栏时会调整会话视口宽度。
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (root === null) return
+    const scroll = scope.scroll
+    const updateInset = (): void => {
+      const { right, width } = scroll.getBoundingClientRect()
+      if (width === 0) return
+      const inset = Math.max(0, document.documentElement.clientWidth - right)
+      root.style.setProperty('--tl-conversation-inset', `${inset}px`)
+    }
+    updateInset()
+    const observer = new ResizeObserver(updateInset)
+    observer.observe(scroll, { box: 'border-box' })
+    window.addEventListener('resize', updateInset)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateInset)
+      root.style.removeProperty('--tl-conversation-inset')
+    }
+  }, [scope.scroll])
 
   // 主题跟随宿主（原版 syncDarkModeClass 的等价物）。
   useEffect(() => observeTheme(() => { setDark(detectDarkTheme()) }), [])
@@ -134,7 +157,7 @@ export function TimelineRoot({ scope, items, starred, pinned, running, collapsed
 
   // ==== 折叠按钮显隐（移植原 setupToggleButtonHover）====
 
-  /** 仅当消息右缘距视口右边 < 200px 时才在 hover 时显示收起按钮（原 shouldShowCollapseButton）。 */
+  /** 仅当消息右缘距会话区右边 < 200px 时才在 hover 时显示收起按钮。 */
   const shouldShowCollapse = useCallback((): boolean => {
     const first = itemsRef.current[0]
     if (first === undefined) return true
@@ -142,8 +165,8 @@ export function TimelineRoot({ scope, items, starred, pinned, running, collapsed
     if (el === null) return true
     const rect = el.getBoundingClientRect()
     if (rect.width === 0) return true
-    return window.innerWidth - rect.right < 200
-  }, [scope.flow])
+    return scope.scroll.getBoundingClientRect().right - rect.right < 200
+  }, [scope.flow, scope.scroll])
 
   const clearAutoHide = useCallback(() => {
     if (autoHideTimerRef.current !== null) {
@@ -255,7 +278,7 @@ export function TimelineRoot({ scope, items, starred, pinned, running, collapsed
     : undefined
 
   return (
-    <div className={css.root} data-dsh-tl-theme={theme} style={activeColorStyle}>
+    <div ref={rootRef} className={css.root} data-dsh-tl-theme={theme} style={activeColorStyle}>
       <div
         className={collapsed ? `${css.wrapper} ${css.wrapperCollapsed}` : css.wrapper}
         data-dsh-tl-wrapper

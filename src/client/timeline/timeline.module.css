@@ -59,15 +59,13 @@
   --tl-qlbtn-hover-bg: rgba(255, 255, 255, 0.1);
 }
 
-/* ==== 包装容器（.ait-chat-timeline-wrapper）
-   right 取原 DeepSeek adapter getTimelinePosition 注入的 22px
-   （原 CSS fallback 17px 被内联样式覆盖，实际渲染为 22px）。
+/* ==== 包装容器（.ait-chat-timeline-wrapper），距会话视口右缘 22px。
    z-index 须低于宿主 shell.overlay 层（AppFrame .overlayLayer 的 20）：
    时间轴 portal 在 body 下，超过 20 会盖住设置面板等全部插件浮层。 ==== */
 .wrapper {
   position: fixed;
   top: 120px;
-  right: 22px;
+  right: calc(var(--tl-conversation-inset, 0px) + 22px);
   z-index: 15;
   display: flex;
   flex-direction: column;
@@ -94,7 +92,7 @@
 .toggleBtn {
   position: fixed;
   top: 50%;
-  right: 1px;
+  right: calc(var(--tl-conversation-inset, 0px) + 1px);
   z-index: 16;
   width: 24px;
   height: 24px;

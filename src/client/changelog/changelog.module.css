@@ -215,6 +215,32 @@
   line-height: 1.55;
 }
 
+.browserStoreActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 12px 0;
+}
+
+.browserStoreBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.browserStoreBtn:hover {
+  background: #eef2f7;
+  color: #1a1a2e;
+}
+
 /* ==================== Rating Bar ==================== */
 
 .ratingBar {
@@ -413,6 +439,17 @@
 
 .root[data-theme='dark'] .itemText {
   color: #c8c5d6;
+}
+
+.root[data-theme='dark'] .browserStoreBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e8e5f0;
+}
+
+.root[data-theme='dark'] .browserStoreBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 .root[data-theme='dark'] .ratingBar {
