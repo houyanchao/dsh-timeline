@@ -30,6 +30,19 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+.toastMultiline {
+  box-sizing: border-box;
+  max-width: min(400px, calc(100vw - 16px));
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.toastMultilineCentered {
+  inset-inline: 0;
+  width: max-content;
+  margin-inline: auto;
+}
+
 /* 默认视觉（useClassStyles=false 时叠加） */
 .toastDefaultVisual {
   padding: 10px 16px;

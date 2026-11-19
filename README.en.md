@@ -36,7 +36,7 @@ The plugin blends right into the host UI: it follows the light / dark theme in r
 - ⌨️ **Smart input** — `Enter` for a newline, double-`Enter` to send; quote selected text as a follow-up; keep your reading position after sending
 - 📤 **Conversation export** — Markdown / TXT / JSON / CSV / PNG / PDF, with math formulas rendered as usual
 - 🧮 **Formula copy** — click a formula to copy it as LaTeX or MathML, ready to paste into Word
-- 📸 **Message screenshots** — click Screenshot below a reply, select the questions and replies to capture, then choose a resolution and copy the image or download a PNG
+- 📸 **Message screenshots** — click Screenshot below a reply, select questions or replies, then choose a resolution to copy or download one PNG. Captures that exceed the size limit are scaled down
 - 🔔 **Reply alerts** — toast and optional sound when a reply finishes while you are reading earlier messages
 - 💾 **Data backup** — one-click export / import of all plugin data (JSON)
 - 🎨 **Native feel** — follows the host's light / dark theme, English / Chinese UI, per-feature toggles

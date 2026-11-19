@@ -1,9 +1,12 @@
-import { getFontEmbedCSS, toBlob } from './vendor/html-to-image.cjs'
+import { getFontEmbedCSS, toCanvas } from './vendor/html-to-image.cjs'
 
 const OMIT = 'input, textarea, select, script, style, link, iframe, object, embed, video, [hidden], [role="toolbar"], [data-turn-tail], [data-dsh-timeline-ui]'
 const MAX_EDGE = 16000
 const MAX_AREA = 32_000_000
-const MAX_FILES = 30
+const MAX_SLICES = 30
+const PREFERRED_SLICE_HEIGHT = 4000
+const CAPTURE_TIMEOUT = 45000
+const WHOLE_CAPTURE_TIMEOUT = 20000
 const IMAGE_TIMEOUT = 8000
 const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink'
 const RETRYABLE_IMAGE_STATUS = new Set([408, 500, 502, 503, 504])
@@ -220,6 +223,8 @@ function sliceContent(root: HTMLElement, top: number, start: number, end: number
       if (duplicate instanceof HTMLElement && rect.width > 0 && rect.height > 0
         && (rect.bottom <= top + start || rect.top >= top + end)) {
         duplicate.replaceChildren()
+        // The measured height includes padding and borders; preserve the same outer height.
+        duplicate.style.boxSizing = 'border-box'
         duplicate.style.height = duplicate.style.minHeight = `${rect.height}px`
       } else if (child instanceof HTMLCanvasElement && duplicate instanceof HTMLCanvasElement) {
         duplicate.getContext('2d')?.drawImage(child, 0, 0)
@@ -233,17 +238,34 @@ function sliceContent(root: HTMLElement, top: number, start: number, end: number
   return clone
 }
 
+function releaseCanvas(canvas: HTMLCanvasElement): void {
+  canvas.width = 0
+  canvas.height = 0
+}
+
+function encodePng(canvas: HTMLCanvasElement, signal: AbortSignal): Promise<Blob> {
+  return waitForCapture(() => new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob?.size) resolve(blob)
+      else reject(new Error('capture-failed'))
+    }, 'image/png')
+  }), signal)
+}
+
 export async function captureMessages(
-  elements: readonly HTMLElement[], pixelRatio: number, cancel: AbortSignal, singleImage: boolean, unavailableLabel: string,
-): Promise<{ blobs: Blob[]; unavailableImageCount: number }> {
+  elements: readonly HTMLElement[], pixelRatio: number, cancel: AbortSignal, unavailableLabel: string,
+): Promise<{ blob: Blob; unavailableImageCount: number; reducedResolution: boolean }> {
+  const deadline = performance.now() + CAPTURE_TIMEOUT
   const operation = new AbortController()
-  const signal = AbortSignal.any([cancel, operation.signal, AbortSignal.timeout(45000)])
+  const signal = AbortSignal.any([cancel, operation.signal, AbortSignal.timeout(CAPTURE_TIMEOUT)])
   signal.throwIfAborted()
   const widths = elements.map(element => Math.ceil(element.getBoundingClientRect().width))
   const width = Math.max(...widths) + 32
   if (!elements.length || ![1, 2, 3, 4].includes(pixelRatio)
-    || elements.some((element, index) => !element.isConnected || widths[index] < 1)
-    || width * pixelRatio > MAX_EDGE) throw new Error('unavailable')
+    || elements.some((element, index) => !element.isConnected || !Number.isFinite(widths[index]) || widths[index] < 1)) {
+    throw new Error('unavailable')
+  }
+  if (width > MAX_EDGE) throw new Error('capture-too-large')
 
   const mount = document.createElement('div')
   mount.setAttribute('aria-hidden', 'true')
@@ -251,7 +273,7 @@ export async function captureMessages(
   mount.dataset.dshTimelineUi = ''
   mount.style.cssText = `position:fixed;left:-100000px;top:0;width:${width}px;pointer-events:none`
   const content = document.createElement('div')
-  content.style.cssText = 'position:absolute;left:0;right:0;top:0;padding:16px;display:flex;flex-direction:column;gap:12px'
+  content.style.cssText = 'position:absolute;left:0;right:0;top:0;box-sizing:border-box;padding:16px;display:flex;flex-direction:column;gap:12px'
   const properties = [...getComputedStyle(elements[0])].filter(name => !name.startsWith('--'))
   elements.forEach((element, index) => {
     const clone = cloneContent(element, properties)
@@ -270,40 +292,100 @@ export async function captureMessages(
       await waitForCapture(() => inlineImages(content, signal, unavailableLabel), signal)
     if (unavailableImageCount > 0 && usableImageCount === 0 && !hasOtherContent(content)) throw new Error('image-unavailable')
     await waitForCapture(() => document.fonts.ready, signal)
-    const height = Math.ceil(content.getBoundingClientRect().height)
-    const limit = Math.floor(Math.min(MAX_EDGE / pixelRatio, MAX_AREA / (width * pixelRatio ** 2)))
-    if (singleImage && height > limit) throw new Error('copy-too-long')
-    if (height > limit * MAX_FILES) throw new Error('capture-too-large')
+    const bounds = content.getBoundingClientRect()
+    const height = Math.ceil(bounds.height)
+    if (!Number.isFinite(height) || height < 1 || height > MAX_EDGE * MAX_SLICES) throw new Error('capture-too-large')
+    const scale = Math.min(pixelRatio, MAX_EDGE / width, MAX_EDGE / height, Math.sqrt(MAX_AREA / (width * height)))
+    const outputWidth = Math.floor(width * scale)
+    const outputHeight = Math.floor(height * scale)
+    if (outputWidth < 1 || outputHeight < 1) throw new Error('capture-too-large')
+    const result = { unavailableImageCount, reducedResolution: scale < pixelRatio }
+
     const fontEmbedCSS = await waitForCapture(() => getFontEmbedCSS(content, {
       preferredFontFormat: 'woff2', fetchRequestInit: { signal },
     }), signal)
-    const top = content.getBoundingClientRect().top
+
+    const render = (node: HTMLElement, sourceHeight: number, canvasHeight: number, attempt: AbortSignal): Promise<HTMLCanvasElement> =>
+      waitForCapture(async () => {
+        // Bound the SVG as well when the source layout is larger than the output limits.
+        const scaleSvg = sourceHeight > MAX_EDGE || width * sourceHeight > MAX_AREA
+        const canvas = await toCanvas(node, {
+          width: scaleSvg ? outputWidth : width, height: scaleSvg ? canvasHeight : sourceHeight,
+          canvasWidth: outputWidth, canvasHeight, pixelRatio: 1, skipAutoScale: true,
+          fontEmbedCSS, fetchRequestInit: { signal: attempt }, includeStyleProperties: properties,
+          style: scaleSvg ? {
+            width: `${width}px`, height: `${sourceHeight}px`, transformOrigin: 'top left',
+            transform: `scale(${outputWidth / width}, ${canvasHeight / sourceHeight})`,
+          } : undefined,
+        })
+        if (attempt.aborted || canvas.width !== outputWidth || canvas.height !== canvasHeight) {
+          releaseCanvas(canvas)
+          attempt.throwIfAborted()
+          throw new Error('capture-failed')
+        }
+        return canvas
+      }, attempt)
+
+    const wholeBudget = Math.max(1, Math.floor(Math.min(WHOLE_CAPTURE_TIMEOUT, (deadline - performance.now()) / 2)))
+    const wholeSignal = AbortSignal.any([signal, AbortSignal.timeout(wholeBudget)])
+    try {
+      const canvas = await render(content, height, outputHeight, wholeSignal)
+      try {
+        const blob = await encodePng(canvas, wholeSignal)
+        wholeSignal.throwIfAborted()
+        return { blob, ...result }
+      } finally {
+        releaseCanvas(canvas)
+      }
+    } catch {
+      signal.throwIfAborted()
+    }
+
+    const top = bounds.top
     const boundaries = [...content.children, ...content.querySelectorAll('p, pre, li, tr, img')]
       .map(element => Math.ceil(element.getBoundingClientRect().bottom - top))
       .sort((a, b) => b - a)
-    const images: Blob[] = []
-    for (let start = 0; start < height;) {
-      const target = Math.min(start + limit, height)
-      const minimum = Math.max(start + limit / 2, height - limit * (MAX_FILES - images.length - 1))
-      const end = target === height ? target
-        : (boundaries.find(value => value <= target && value >= minimum) ?? target)
-      const viewport = document.createElement('div')
-      viewport.style.cssText = `position:relative;overflow:hidden;width:${width}px;height:${end - start}px`
-      viewport.append(sliceContent(content, top, start, end))
-      mount.append(viewport)
-      try {
-        const blob = await waitForCapture(() => toBlob(viewport, {
-          width, height: end - start, pixelRatio, skipAutoScale: true,
-          fontEmbedCSS, fetchRequestInit: { signal }, includeStyleProperties: properties,
-        }), signal)
-        if (blob === null || blob.size === 0) throw new Error('capture-failed')
-        images.push(blob)
-      } finally {
-        viewport.remove()
+    const limit = Math.min(Math.ceil(height / 2), Math.max(PREFERRED_SLICE_HEIGHT, Math.ceil(height / MAX_SLICES)))
+    const output = document.createElement('canvas')
+    output.width = outputWidth
+    output.height = outputHeight
+    try {
+      const ctx = output.getContext('2d')
+      if (!ctx) throw new Error('capture-failed')
+      for (let start = 0, slices = 0; start < height; slices++) {
+        signal.throwIfAborted()
+        const target = Math.min(start + limit, height)
+        const minimum = Math.max(start + Math.ceil(limit / 2), height - limit * (MAX_SLICES - slices - 1))
+        const end = target === height ? target
+          : (boundaries.find(value => value > start && value <= target && value >= minimum) ?? target)
+        // Adjacent slices share the same rounded output row at their boundary.
+        const row = Math.round(start * outputHeight / height)
+        const endRow = Math.round(end * outputHeight / height)
+        if (endRow > row) {
+          const viewport = document.createElement('div')
+          viewport.style.cssText = `position:relative;overflow:hidden;width:${width}px;height:${end - start}px`
+          viewport.append(sliceContent(content, top, start, end))
+          mount.append(viewport)
+          try {
+            const tile = await render(viewport, end - start, endRow - row, signal)
+            try {
+              signal.throwIfAborted()
+              ctx.drawImage(tile, 0, row)
+            } finally {
+              releaseCanvas(tile)
+            }
+          } finally {
+            viewport.remove()
+          }
+        }
+        start = end
       }
-      start = end
+      const blob = await encodePng(output, signal)
+      signal.throwIfAborted()
+      return { blob, ...result }
+    } finally {
+      releaseCanvas(output)
     }
-    return { blobs: images, unavailableImageCount }
   } finally {
     operation.abort()
     mount.remove()

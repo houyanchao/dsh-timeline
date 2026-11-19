@@ -32,6 +32,8 @@ export interface ToastOptions {
   readonly icon?: string
   readonly gap?: number
   readonly className?: string
+  /** 保留消息换行，并将提示限制在视口宽度内。 */
+  readonly multiline?: boolean
   /** 内置图标类型（check 为 SVG 对勾，优先于 icon）。 */
   readonly iconType?: 'check'
   /** 跳过默认视觉样式，由 CSS 类接管（AI 完成胶囊用）。 */
@@ -197,14 +199,14 @@ export function ToastHost({ dark }: { readonly dark: boolean }) {
     const centerToasts = list.filter(t => t.config.target == null && !t.leaving)
     const relativeToasts = list.filter(t => t.config.target != null && !t.leaving)
 
-    centerToasts.forEach((t, index) => {
+    let centerTop: number = CONFIG.centerGap
+    centerToasts.forEach((t) => {
       const el = refs.current.get(t.id)
       if (el === undefined) return
       const rect = el.getBoundingClientRect()
-      const top = CONFIG.centerGap + index * (rect.height + CONFIG.stackGap)
-      const left = (window.innerWidth - rect.width) / 2
-      el.style.left = `${left}px`
-      el.style.top = `${top}px`
+      if (!t.config.multiline) el.style.left = `${(window.innerWidth - rect.width) / 2}px`
+      el.style.top = `${centerTop}px`
+      centerTop += rect.height + CONFIG.stackGap
     })
 
     for (const t of relativeToasts) {
@@ -280,6 +282,8 @@ export function ToastHost({ dark }: { readonly dark: boolean }) {
         const classNames = [
           css.toast,
           useClass ? '' : css.toastDefaultVisual,
+          t.config.multiline ? css.toastMultiline : '',
+          t.config.multiline && t.config.target == null ? css.toastMultilineCentered : '',
           t.config.className === 'ait-ai-complete-toast' ? css.toastAiComplete : '',
           // 原版将 className 原样附加到元素上（任意类名透传）。
           t.config.className ?? '',

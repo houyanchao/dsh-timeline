@@ -387,17 +387,19 @@ function MessageSelection({ request, scopeAnchor, t, texts, defaultThemeId, titl
     const filename = ceSanitizeFilename(title, texts.defaultTitle)
     const format = CE_FORMATS.find(f => f.id === (screenshot ? 'png' : formatId)) ?? CE_FORMATS[0]
     let unavailableImageCount = 0
+    let reducedResolution = false
 
-    const prepare = async (): Promise<string | Blob | Blob[] | undefined> => {
+    const prepare = async (): Promise<string | Blob | undefined> => {
       if (screenshot) {
         const mounted = mountedMessageElements(scopeAnchor.current)
         const elements = selectedKeys.map(key => mounted.get(key))
         if (elements.some(element => element === undefined)) throw new Error('unavailable')
         const { captureMessages } = await import('./screenshot.ts')
         const capture = await captureMessages(elements.filter((element): element is HTMLElement => element !== undefined),
-          pixelRatio, signal, copy, t('export.screenshotMissingImageLabel'))
+          pixelRatio, signal, t('export.screenshotMissingImageLabel'))
         unavailableImageCount = capture.unavailableImageCount
-        return capture.blobs
+        reducedResolution = capture.reducedResolution
+        return capture.blob
       }
 
       const selectedTurns = await collectAllTurns(order, nodes, resolveAttachment, {
@@ -444,7 +446,6 @@ function MessageSelection({ request, scopeAnchor, t, texts, defaultThemeId, titl
         } else {
           const data = output.then(value => {
             signal.throwIfAborted()
-            if (Array.isArray(value) && value.length === 1) return value[0]
             if (value instanceof Blob) return value
             if (typeof value === 'string') return new Blob([value], { type: mime })
             throw new Error('copy-failed')
@@ -460,28 +461,24 @@ function MessageSelection({ request, scopeAnchor, t, texts, defaultThemeId, titl
       } else {
         const value = await output
         signal.throwIfAborted()
-        if (Array.isArray(value)) {
-          value.forEach((blob, index) => ceTriggerDownload(
-            value.length === 1 ? filename : `${filename}-${index + 1}`, format, blob,
-          ))
-        } else if (value !== undefined) ceTriggerDownload(filename, format, value)
+        if (value !== undefined) ceTriggerDownload(filename, format, value)
       }
 
       if (signal.aborted) return
       if (screenshot) settingsStore.set({ screenshotScale: pixelRatio })
       else settingsStore.set({ exportOptions: { formatId, themeId, showTime, showConversationTime } })
+      const warnings: string[] = []
+      if (reducedResolution) warnings.push(t('export.screenshotResolutionReduced'))
       if (unavailableImageCount > 0) {
-        toast.warning(ceFormatText(t('export.screenshotPartial'), { count: unavailableImageCount }))
-      } else {
-        toast.success(copy ? t('export.copied') : texts.done)
+        warnings.push(ceFormatText(t('export.screenshotPartial'), { count: unavailableImageCount }))
       }
+      if (warnings.length > 0) toast.warning(warnings.join('\n'), null, { multiline: true })
+      else toast.success(copy ? t('export.copied') : texts.done)
       if (!copy) onClose()
     } catch (error) {
       if (signal.aborted) return
       const code = error instanceof Error ? error.message : ''
-      if (code === 'copy-too-long') {
-        toast.warning(t('export.copyTooLong'))
-      } else if (screenshot && code === 'unavailable') {
+      if (screenshot && code === 'unavailable') {
         toast.warning(t('export.messageUnavailable'))
       } else if (screenshot && code === 'image-unavailable') {
         toast.warning(t('export.screenshotImageUnavailable'))
