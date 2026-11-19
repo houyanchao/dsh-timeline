@@ -12,7 +12,7 @@ export interface ChangelogItem {
 
 /** 更新内容（原 CHANGELOG_DATA）。 */
 export const CHANGELOG_DATA = {
-  id: 'dsh-0.1.10',
+  id: 'dsh-0.1.12',
   /** 'manual' 由设置页版本号打开，'popup' 自动打开未读更新日志。 */
   displayMode: 'manual' as 'manual' | 'popup',
 
@@ -20,12 +20,12 @@ export const CHANGELOG_DATA = {
 
   improvements: [
     {
-      zh: '关闭时间轴后，仍可从对话顶部收藏整段会话或单条提问。',
-      en: 'You can still star the conversation or individual questions from the conversation header when the timeline is off.',
+      zh: '消息截图现在只下载或复制一张 PNG。内容超出尺寸限制时会等比缩小，并提示清晰度已调整。',
+      en: 'Downloading or copying a message screenshot now produces a single PNG. Oversized captures are scaled down and show a resolution warning.',
     },
     {
-      zh: '展开、收起或调整右侧栏宽度时，时间轴和折叠按钮会跟随对话区右边缘，避免遮挡任务管理等面板。',
-      en: 'The timeline and its collapse button follow the right edge of the conversation as the right sidebar opens, closes, or resizes, keeping panels such as Task Management clear.',
+      zh: '修复分段合成长截图时末尾可能被截掉的问题；清晰度降低和图片读取失败的提示同时出现时可完整显示。',
+      en: 'Fixed the end of long screenshots being clipped when stitching slices. Resolution and missing-image warnings now wrap so both remain readable.',
     },
     {
       zh: '检测到更高版本时，提示词图标会显示红点。点击图标打开提示词面板后，红点会消失，直到检测到下一个更高版本。',
