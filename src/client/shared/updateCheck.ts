@@ -4,8 +4,10 @@ import { Bus } from '../ui/bus.ts'
 import { registerStorageSync } from './storageSync.ts'
 import { PLUGIN_VERSION } from './version.ts'
 
-const LATEST_URL = 'https://registry.npmjs.org/dsh-timeline/latest'
+const PACKAGE_URL = 'https://registry.npmjs.org/dsh-timeline'
+const LATEST_URL = `${PACKAGE_URL}/latest`
 const CACHE_MS = 24 * 60 * 60 * 1000
+const MIN_RELEASE_AGE_MS = 24 * 60 * 60 * 1000
 const RETRY_MS = 5 * 60 * 1000
 const SEEN_VERSION_KEY = 'dsh.timeline.update.seenVersion'
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
@@ -82,8 +84,29 @@ async function checkForUpdate(): Promise<void> {
     if (typeof version !== 'string') throw new Error('Missing npm version')
     const latest = parseVersion(version)
     if (latest === null) throw new Error('Invalid npm version')
-    checkAgainAt = Date.now() + CACHE_MS
-    availableUpdate.set(isNewer(latest, currentVersion) ? version : null)
+
+    if (!isNewer(latest, currentVersion)) {
+      checkAgainAt = Date.now() + CACHE_MS
+      availableUpdate.set(null)
+      return
+    }
+
+    const packageResponse = await fetch(PACKAGE_URL, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!packageResponse.ok) throw new Error('npm publication date check failed')
+    const metadata = await packageResponse.json() as { readonly time?: Readonly<Record<string, unknown>> } | null
+    const publishedAt = metadata?.time?.[version]
+    const publishedAtMs = typeof publishedAt === 'string' ? Date.parse(publishedAt) : NaN
+    if (!Number.isFinite(publishedAtMs)) throw new Error('Invalid npm publication date')
+
+    const now = Date.now()
+    const eligibleAt = publishedAtMs + MIN_RELEASE_AGE_MS
+    const eligible = now >= eligibleAt
+    const cacheExpiresAt = now + CACHE_MS
+    checkAgainAt = eligible ? cacheExpiresAt : Math.min(cacheExpiresAt, eligibleAt)
+    availableUpdate.set(eligible ? version : null)
   } catch {
     checkAgainAt = Date.now() + RETRY_MS
     availableUpdate.set(null)
