@@ -16,7 +16,7 @@
   border: none;
   border-radius: 999px;
   padding: 0;
-  background: var(--dsw-specific-selector);
+  background: transparent;
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
   user-select: none;
