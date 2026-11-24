@@ -4,7 +4,7 @@ import type {} from '@deepseek-ai/dsh-client-connection/client'
 const npmRegistry = 'https://registry.npmjs.org/'
 const publishedVersion = /^\d+\.\d+\.\d+(?:-[\da-z-]+(?:\.[\da-z-]+)*)?(?:\+[\da-z-]+(?:\.[\da-z-]+)*)?$/i
 
-export type RecommendedPackageName = '@houyanchao/dsh-free-model' | 'dsh-use-chatgpt'
+export type RecommendedPackageName = 'dsh-open-model' | 'dsh-use-chatgpt'
 
 export interface PluginInstallState {
   readonly inventory: 'unavailable' | 'loading' | 'ready' | 'failed'
@@ -81,6 +81,7 @@ export function createPluginInstaller(ctx: ClientContext): PluginInstaller {
       const installed = new Set(bundles.filter(item =>
         item.installed || item.availability === 'profile' || item.availability === 'installation',
       ).map(item => item.name))
+      if (installed.has('@houyanchao/dsh-free-model')) installed.add('dsh-open-model')
       update({ inventory: 'ready', installed, error: state.error && installed.has(state.error.name) ? null : state.error })
     } catch {
       if (current === revision) update({ inventory: 'failed' })
@@ -89,7 +90,7 @@ export function createPluginInstaller(ctx: ClientContext): PluginInstaller {
 
   ctx.inject(['remote', 'remote.pluginManager'], scope => {
     scope.effect(() => {
-      const remote = scope.get('remote') as PluginRemote
+      const remote = scope.get('remote') as typeof scope.remote & PluginRemote
       // Give each binding its own identity even if the host reuses the remote proxy.
       const active = { manager: remote.pluginManager }
       connection = active

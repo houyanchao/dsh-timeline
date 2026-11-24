@@ -12,24 +12,29 @@ export interface ChangelogItem {
 
 /** 更新内容（原 CHANGELOG_DATA）。 */
 export const CHANGELOG_DATA = {
-  id: 'dsh-0.1.12',
+  id: 'dsh-0.1.14',
   /** 'manual' 由设置页版本号打开，'popup' 自动打开未读更新日志。 */
   displayMode: 'manual' as 'manual' | 'popup',
 
-  features: [] as readonly ChangelogItem[],
+  features: [
+    {
+      zh: '关于插件页新增作者的其他插件，可直接安装 DSH 插件，也可打开 Chrome 或 Edge 商店。',
+      en: 'Find more plugins by the author on the About tab. Install DSH plugins directly or open the Chrome and Edge stores.',
+    },
+  ] as readonly ChangelogItem[],
 
   improvements: [
     {
-      zh: '消息截图现在只下载或复制一张 PNG。内容超出尺寸限制时会等比缩小，并提示清晰度已调整。',
-      en: 'Downloading or copying a message screenshot now produces a single PNG. Oversized captures are scaled down and show a resolution warning.',
+      zh: '免费模型推荐已更名为 dsh-open-model。安装按钮使用新包名，也能识别已安装的旧版。',
+      en: 'The free models plugin is now dsh-open-model. The install button uses its new name and recognizes earlier installations.',
     },
     {
-      zh: '修复分段合成长截图时末尾可能被截掉的问题；清晰度降低和图片读取失败的提示同时出现时可完整显示。',
-      en: 'Fixed the end of long screenshots being clipped when stitching slices. Resolution and missing-image warnings now wrap so both remain readable.',
+      zh: '更新提醒会在新版本发布满 24 小时后出现。',
+      en: 'Update notifications appear once a new version has been published for 24 hours.',
     },
     {
-      zh: '检测到更高版本时，提示词图标会显示红点。点击图标打开提示词面板后，红点会消失，直到检测到下一个更高版本。',
-      en: 'The Prompt Library icon shows a red dot when a newer version is available. Opening the Prompt Library clears the dot until a higher version is detected.',
+      zh: '调整了关于插件页的排版，并将提示词按钮的默认背景改为透明。',
+      en: 'Refined the About tab layout and made the prompt button background transparent.',
     },
   ] as readonly ChangelogItem[],
 }

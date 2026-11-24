@@ -7,10 +7,10 @@ import css from './about.module.css'
 
 const plugins = [
   {
-    title: 'dsh-free-model',
-    name: '@houyanchao/dsh-free-model',
+    title: 'dsh-open-model',
+    name: 'dsh-open-model',
     description: 'recommend.freeModel',
-    guide: 'https://github.com/houyanchao/dsh-free-model#在自研-dsh-客户端安装',
+    guide: 'https://github.com/houyanchao/dsh-open-model#在自研-dsh-客户端安装',
   },
   {
     title: 'dsh-use-chatgpt',
