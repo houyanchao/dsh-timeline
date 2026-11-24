@@ -15,6 +15,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { en, NS, zh, type TimelineKey } from './locales.ts'
+import { createPluginInstaller } from './shared/pluginInstaller.ts'
 import { bindTheme } from './shared/theme.ts'
 import { bindStorageSync } from './shared/storageSync.ts'
 import { bindUpdateCheck } from './shared/updateCheck.ts'
@@ -55,6 +56,7 @@ export const inject = ['slots', 'locale', 'sessions', 'theme', 'uiConversation']
  * @param ctx - 客户端根上下文。
  */
 export function apply(ctx: ClientContext): void {
+  const installer = createPluginInstaller(ctx)
   const openSession = (sessionId: string): void => {
     const id = sessionId as SessionId
     // 新版 DSH 由 Workspace 打开会话并切回主视图；旧版仍可使用 sessions.open。
@@ -117,7 +119,7 @@ export function apply(ctx: ClientContext): void {
       name: 'shell.overlay',
       id: 'dsh-timeline-ui',
       locale: NS,
-      inject: () => ({ openSession, openPluginVersions }),
+      inject: () => ({ openSession, openPluginVersions, installer }),
     }, UiHost),
   )
   // 收藏列表：挂在侧栏脚槽位，实际 portal 到工作区上方。

@@ -1,7 +1,7 @@
 /**
  * 设置面板（移植原 panelModal）：居中弹窗、左侧 tab 栏 + 右侧内容区。
  * Tab：时间轴 / 文件夹 / 提示词 / 输入框 / 复制公式 / 对话导出 / 数据同步
- * （原 chrome 专属的 about/highlight/animation/runner 不在 DSH 迁移范围）。
+ * （关于插件页提供项目资料与其他插件的安装入口）。
  * 原按平台分组的开关（platform modal）在 DSH 单平台下折叠为单行开关。
  * 通过 panelModal.show(tab) 总线打开；遮罩点击 / 关闭按钮关闭。
  */
@@ -13,7 +13,8 @@ import { settingsStore, type SmartEnterMode } from '../shared/settings.ts'
 import { ACTIVE_COLOR_PALETTE, DEFAULT_ACTIVE_COLOR_ID, paletteEntryToCss } from '../shared/palette.ts'
 import { playAiCompleteSound, showAiCompleteToast } from '../shared/aiCompleteReminder.ts'
 import { AvailableUpdateBadge, type OpenPluginVersions } from '../ui/AvailableUpdateBadge.tsx'
-import { BrowserStoreLinks } from '../ui/BrowserStoreLinks.tsx'
+import { AboutTab } from './AboutTab.tsx'
+import type { PluginInstaller } from '../shared/pluginInstaller.ts'
 import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
 import { dropdown } from '../ui/dropdown.tsx'
@@ -41,6 +42,7 @@ export interface PanelHostProps {
   readonly currentSessionId: string | undefined
   readonly openSession: (sessionId: string) => void
   readonly openPluginVersions: OpenPluginVersions
+  readonly installer: PluginInstaller
 }
 
 /** 「标记重点」提示 toast 的黑白反色（原 TimelineSettingsTab 内联色值；黑底改取宿主 tooltip 底板 token）。 */
@@ -144,7 +146,7 @@ const TABS: readonly { id: PanelTab; labelKey: 'panel.tabAbout' | 'panel.tabTime
  * @param props - 词典 + 会话导航。
  * @returns 面板或 null。
  */
-export function PanelHost({ t, currentSessionId, openSession, openPluginVersions }: PanelHostProps) {
+export function PanelHost({ t, currentSessionId, openSession, openPluginVersions, installer }: PanelHostProps) {
   const request = useSyncExternalStore(panelModal.subscribe, () => panelModal.get())
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<PanelTab>('timeline')
@@ -186,7 +188,7 @@ export function PanelHost({ t, currentSessionId, openSession, openPluginVersions
   return (
     <div className={css.modal}>
       <div className={css.overlay} onClick={close} />
-      <div className={css.wrapper}>
+      <div className={activeTab === 'about' ? `${css.wrapper} ${css.aboutShell}` : css.wrapper}>
         {/* ===== 左侧边栏 ===== */}
         <div className={css.sidebar}>
           <div className={css.sidebarHeader}>
@@ -265,8 +267,8 @@ export function PanelHost({ t, currentSessionId, openSession, openPluginVersions
               </button>
             </div>
           </div>
-          <div className={css.content}>
-            {activeTab === 'about' ? <AboutTab t={t} /> : null}
+          <div className={activeTab === 'about' ? `${css.content} ${css.aboutContent}` : css.content}>
+            {activeTab === 'about' ? <AboutTab t={t} installer={installer} openDataSync={() => setActiveTab('dataSync')} /> : null}
             {activeTab === 'timeline' ? <TimelineTab t={t} reminderSeq={reminderSeq} /> : null}
             {activeTab === 'starred'
               ? (
@@ -368,95 +370,6 @@ function PlatformInfo() {
         <img src={DEEPSEEK_LOGO_DATA_URL} alt="DeepSeek" />
       </div>
       <span className={css.subPlatformName}>DeepSeek</span>
-    </div>
-  )
-}
-
-// ==================== 关于插件 tab ====================
-
-/** 关于页的文档、仓库与反馈入口。 */
-const ABOUT_LINKS = {
-  docs: 'https://timeline4ai.com/#/guide?section=timeline',
-  github: 'https://github.com/houyanchao/dsh-timeline',
-  issues: 'https://github.com/houyanchao/dsh-timeline/issues',
-  email: 'houyanchao@outlook.com',
-} as const
-
-/** 关于插件 tab（移植原 tabs/about：分享按钮组 + 简介/数据安全/提需求）。 */
-function AboutTab({ t }: { readonly t: T }) {
-  const copyEmail = (): void => {
-    void navigator.clipboard.writeText(ABOUT_LINKS.email).then(() => {
-      toast.success(t('about.copied'))
-    })
-  }
-
-  return (
-    <div className={css.aboutTab}>
-      {/* 分享操作按钮组（原 about-share-actions） */}
-      <div className={css.aboutShareActions}>
-        <a href={ABOUT_LINKS.docs} target="_blank" rel="noopener noreferrer" className={css.aboutShareActionBtn}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" /><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" /></svg>
-          {t('about.btnDocs')}
-        </a>
-        <a href={ABOUT_LINKS.github} target="_blank" rel="noopener noreferrer" className={css.aboutShareActionBtn}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>
-          {t('about.btnGithub')}
-        </a>
-        <BrowserStoreLinks t={t} className={css.aboutShareActionBtn} />
-      </div>
-
-      {/* 插件简介 */}
-      <div className={css.aboutSection}>
-        <div className={css.aboutSectionIcon}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20" aria-hidden>
-            <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z" />
-            <polyline points="13,2 13,9 20,9" />
-          </svg>
-        </div>
-        <div className={css.aboutSectionBody}>
-          <div className={css.aboutSectionTitle}>{t('about.pluginTitle')}</div>
-          <div className={css.aboutSectionContent}>{t('about.pluginContent')}</div>
-        </div>
-      </div>
-
-      {/* 数据安全 */}
-      <div className={css.aboutSection}>
-        <div className={css.aboutSectionIcon}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20" aria-hidden>
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-        </div>
-        <div className={css.aboutSectionBody}>
-          <div className={css.aboutSectionTitle}>{t('about.dataSecurityTitle')}</div>
-          <div className={css.aboutSectionContent}>{t('about.dataSecurityContent')}</div>
-        </div>
-      </div>
-
-      {/* 提需求（含反馈渠道块） */}
-      <div className={css.aboutSection}>
-        <div className={css.aboutSectionIcon}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20" aria-hidden>
-            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        </div>
-        <div className={css.aboutSectionBody}>
-          <div className={css.aboutSectionTitle}>{t('about.developerTitle')}</div>
-          <div className={css.aboutSectionContent}>
-            {t('about.developerContent')}
-            <div className={css.aboutFeedbackBlocks}>
-              <a href={ABOUT_LINKS.issues} target="_blank" rel="noopener noreferrer" className={css.aboutFeedbackBlock}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22" /></svg>
-                <span>{t('about.feedbackGithub')}</span>
-              </a>
-              <button type="button" className={css.aboutFeedbackBlock} onClick={copyEmail}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-                <span>{t('about.feedbackEmail')}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

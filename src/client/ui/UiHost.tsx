@@ -6,6 +6,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PluginInstaller } from '../shared/pluginInstaller.ts'
 import type { NS } from '../locales.ts'
 import { selectCurrentSessionId } from '../shared/currentSession.ts'
 import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
@@ -30,6 +31,7 @@ export type UiHostProps = PropsRuntime<'shell.overlay'> & PropsLocale<typeof NS>
   /** 在主视图中打开指定会话。 */
   readonly openSession: (sessionId: string) => void
   readonly openPluginVersions: OpenPluginVersions
+  readonly installer: PluginInstaller
 }
 
 /**
@@ -37,7 +39,7 @@ export type UiHostProps = PropsRuntime<'shell.overlay'> & PropsLocale<typeof NS>
  * @param props - 词典 + 会话导航。
  * @returns 各命令式 UI 的渲染宿主。
  */
-export function UiHost({ t, useSessions, openSession, openPluginVersions }: UiHostProps) {
+export function UiHost({ t, useSessions, openSession, openPluginVersions, installer }: UiHostProps) {
   const currentSessionId = useSessions(selectCurrentSessionId)
   const request = useSyncExternalStore(panelModal.subscribe, panelModal.get)
   const [panelRequested, setPanelRequested] = useState(false)
@@ -96,7 +98,7 @@ export function UiHost({ t, useSessions, openSession, openPluginVersions }: UiHo
       {panelRequested
         ? (
           <Suspense fallback={null}>
-            <PanelHost t={t} currentSessionId={currentSessionId} openSession={openSession} openPluginVersions={openPluginVersions} />
+            <PanelHost t={t} currentSessionId={currentSessionId} openSession={openSession} openPluginVersions={openPluginVersions} installer={installer} />
           </Suspense>
         )
         : null}
