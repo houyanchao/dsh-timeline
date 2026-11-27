@@ -13,6 +13,8 @@ import { NS } from '../locales.ts'
 import { summarizeAssistantBlocks, summarizeBlocks } from '../shared/text.ts'
 import { settingsStore } from '../shared/settings.ts'
 import { useConversationDOM } from '../shared/conversationDom.ts'
+import { useTurnCompletions, type TurnCompletionSources } from '../shared/turnCompletions.ts'
+import { playAiCompleteSound, showAiCompleteToast } from '../shared/aiCompleteReminder.ts'
 import { nodeStarKey, pendingNavigateStore, pinsStore, sessionStarKey, starredStore, type PendingNavigate } from '../starred/storage.ts'
 import { toast } from '../ui/toast.tsx'
 import { tooltip } from '../ui/tooltip.tsx'
@@ -35,6 +37,7 @@ export type TimelineActionProps =
   PropsRuntime<'conversation.session.header.actions'>
   & PropsStore<ReturnType<typeof createTimelineStore>>
   & PropsLocale<typeof NS>
+  & TurnCompletionSources
   & { readonly loadSavedQuestion: (sessionId: string, nodeKey: string, signal: AbortSignal) => Promise<boolean> }
 
 /** 计入时间轴的用户输入节点类别（提问 + 轮中追问）。 */
@@ -142,7 +145,7 @@ function sameTimelineItems(previous: readonly TimelineItem[], next: readonly Tim
  * @param props - 槽位运行时 + store + 词典。
  * @returns 收藏入口；开启且有提问时渲染时间轴。
  */
-export function TimelineAction({ sessionId, useChat, useSession, useSessions, useStore, actions, loadSavedQuestion, t }: TimelineActionProps) {
+export function TimelineAction({ sessionId, useChat, useSession, useSessions, useStore, actions, loadSavedQuestion, completionEvents, completionChat, t }: TimelineActionProps) {
   const items = useChat(s => collectItems(s.order, s.nodes, t), sameTimelineItems)
   const running = useSession(s => s.running)
   const collapsed = useStore(s => s.collapsed)
@@ -151,6 +154,13 @@ export function TimelineAction({ sessionId, useChat, useSession, useSessions, us
   const navigateToItem = useQuestionNavigation(sessionId, scopeAnchor, scope !== null, loadSavedQuestion, t)
   const displayTitle = useSessions(s => s.byId[sessionId]?.displayTitle)
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
+  const remindersEnabled = settings.timelineEnabled && (settings.aiCompleteToastEnabled || settings.aiCompleteSoundEnabled)
+  useTurnCompletions({ completionEvents, completionChat }, remindersEnabled, scopeAnchor, () => {
+    const current = settingsStore.get()
+    if (!current.timelineEnabled || (!current.aiCompleteToastEnabled && !current.aiCompleteSoundEnabled)) return
+    if (current.aiCompleteToastEnabled) showAiCompleteToast(t('timeline.aiCompleteToast'))
+    if (current.aiCompleteSoundEnabled) playAiCompleteSound()
+  })
 
   // 收藏标记来自全局收藏存储（含文件夹归属），按会话过滤成节点映射。
   const starredState = useSyncExternalStore(starredStore.subscribe, () => starredStore.getState())

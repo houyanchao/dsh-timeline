@@ -51,6 +51,7 @@ let currentAudio: HTMLAudioElement | null = null
 /** 播放完成提示音（原 playAICompleteSound，volume 0.45）。 */
 export function playAiCompleteSound(): void {
   try {
+    stopAiCompleteSound()
     const audio = new Audio(DONE_SOUND_DATA_URL)
     audio.volume = 0.45
     currentAudio = audio
@@ -68,5 +69,8 @@ export function stopAiCompleteSound(): void {
 
 /** 移除锚点（原 removeAnchor，时间轴卸载时调用）。 */
 export function removeAiCompleteAnchor(): void {
-  document.querySelectorAll(`.${ANCHOR_CLASS}`).forEach(el => { el.remove() })
+  for (const anchor of document.querySelectorAll<HTMLElement>(`.${ANCHOR_CLASS}`)) {
+    toast.dismissForTarget(anchor)
+    anchor.remove()
+  }
 }

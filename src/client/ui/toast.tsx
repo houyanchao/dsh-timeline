@@ -121,9 +121,10 @@ function remove(id: number, immediate: boolean): void {
   }
   bus.update(list => list.map(t => (t.id === id ? { ...t, leaving: true } : t)))
   const cleanupDelay = current.config.useClassStyles === true ? 320 : 200
-  setTimeout(() => {
+  timers.set(id, setTimeout(() => {
+    timers.delete(id)
     bus.update(list => list.filter(t => t.id !== id))
-  }, cleanupDelay)
+  }, cleanupDelay))
 }
 
 function show(type: ToastType, message: string, options: ToastOptions = {}): void {
@@ -164,6 +165,11 @@ export const toast = {
   },
   warning: (message: string, target: HTMLElement | null = null, options: ToastOptions = {}) => {
     show('warning', message, { target, ...options })
+  },
+  dismissForTarget(target: HTMLElement): void {
+    for (const item of bus.get()) {
+      if (item.config.target === target) remove(item.id, true)
+    }
   },
   forceHideAll: () => {
     for (const timer of timers.values()) clearTimeout(timer)

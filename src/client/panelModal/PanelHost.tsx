@@ -5,7 +5,7 @@
  * 原按平台分组的开关（platform modal）在 DSH 单平台下折叠为单行开关。
  * 通过 panelModal.show(tab) 总线打开；遮罩点击 / 关闭按钮关闭。
  */
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from '../locales.ts'
 import { PLUGIN_VERSION } from '../shared/version.ts'
@@ -28,6 +28,7 @@ import { changelogModal } from '../changelog/ChangelogModal.tsx'
 import { CHANGELOG_DATA } from '../changelog/data.ts'
 import { DEEPSEEK_LOGO_DATA_URL } from '../shared/deepseekLogo.ts'
 import { panelModal, type PanelTab } from './bus.ts'
+import { containDialogFocus } from './dialogFocus.ts'
 import { exportDataToFile, isValidBackup, mergeData, overwriteData } from './dataSync.ts'
 import css from './panel.module.css'
 
@@ -331,13 +332,19 @@ function SettingItem({ label, hint, control }: SettingItemProps) {
 
 interface SubModalProps {
   readonly title: string
+  readonly closeLabel: string
+  readonly opener: React.RefObject<HTMLButtonElement>
   readonly variant?: 'theme' | 'reminder'
   readonly onClose: () => void
   readonly children: React.ReactNode
 }
 
 /** 子弹窗（原 .starred-platform-modal）。 */
-function SubModal({ title, variant, onClose, children }: SubModalProps) {
+function SubModal({ title, closeLabel, variant, opener, onClose, children }: SubModalProps) {
+  const dialog = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (dialog.current) return containDialogFocus(dialog.current, opener.current, onClose)
+  }, [onClose, opener])
   return (
     <div
       className={css.subModalOverlay}
@@ -346,6 +353,10 @@ function SubModal({ title, variant, onClose, children }: SubModalProps) {
       }}
     >
       <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className={[
           css.subModal,
           variant === 'theme' ? css.subModalTheme : '',
@@ -354,7 +365,7 @@ function SubModal({ title, variant, onClose, children }: SubModalProps) {
       >
         <div className={css.subModalHeader}>
           <span>{title}</span>
-          <button type="button" className={css.subModalClose} onClick={onClose}>✕</button>
+          <button type="button" className={css.subModalClose} aria-label={closeLabel} onClick={onClose}>✕</button>
         </div>
         <div className={css.subModalBody}>{children}</div>
       </div>
@@ -380,11 +391,18 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
   const settings = useSyncExternalStore(settingsStore.subscribe, () => settingsStore.get())
   const [themeModalOpen, setThemeModalOpen] = useState(false)
   const [reminderModalOpen, setReminderModalOpen] = useState(false)
+  const themeTrigger = useRef<HTMLButtonElement>(null)
+  const reminderTrigger = useRef<HTMLButtonElement>(null)
+  const closeTheme = useCallback(() => setThemeModalOpen(false), [])
+  const closeReminder = useCallback(() => setReminderModalOpen(false), [])
 
   // 深链：panelModal.show('timeline', 'aiCompleteReminder') 时自动打开提醒子弹窗
   // （对齐原 TimelineSettingsTab.showAICompleteReminderModal 直开行为）。
   useEffect(() => {
-    if (reminderSeq > 0) setReminderModalOpen(true)
+    if (reminderSeq > 0) {
+      setThemeModalOpen(false)
+      setReminderModalOpen(true)
+    }
   }, [reminderSeq])
 
   const selectedColorId = ACTIVE_COLOR_PALETTE.some(entry => entry.id === settings.activeColorId)
@@ -428,7 +446,7 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
             label={t('panel.themeColorLabel')}
             hint={t('panel.themeColorHint')}
             control={(
-              <button type="button" className={css.manageBtn} onClick={() => { setThemeModalOpen(true) }}>
+              <button ref={themeTrigger} type="button" className={css.manageBtn} onClick={() => { setThemeModalOpen(true) }}>
                 {t('panel.settingsBtn')}
               </button>
             )}
@@ -442,7 +460,7 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
             hint={t('panel.aiCompleteHint')}
             control={(
               // 原按钮走 sidebarStarredManage 词条（en "Settings"），与主题色按钮（en "Set"）不同。
-              <button type="button" className={css.manageBtn} onClick={() => { setReminderModalOpen(true) }}>
+              <button ref={reminderTrigger} type="button" className={css.manageBtn} onClick={() => { setReminderModalOpen(true) }}>
                 {t('panel.reminderSettingsBtn')}
               </button>
             )}
@@ -518,7 +536,7 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
       {/* 主题色子弹窗（原 _showThemeColorModal，DSH 单平台一行） */}
       {themeModalOpen
         ? (
-          <SubModal title={t('panel.themeColorLabel')} variant="theme" onClose={() => { setThemeModalOpen(false) }}>
+          <SubModal title={t('panel.themeColorLabel')} closeLabel={t('common.cancel')} variant="theme" opener={themeTrigger} onClose={closeTheme}>
             <div className={css.themeColorItem}>
               <PlatformInfo />
               <div className={css.colorOptions} aria-label={t('panel.themeColorLabel')}>
@@ -542,13 +560,14 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
       {/* AI 完成提醒子弹窗（原 showAICompleteReminderModal） */}
       {reminderModalOpen
         ? (
-          <SubModal title={t('panel.aiCompleteTitle')} variant="reminder" onClose={() => { setReminderModalOpen(false) }}>
+          <SubModal title={t('panel.aiCompleteTitle')} closeLabel={t('common.cancel')} variant="reminder" opener={reminderTrigger} onClose={closeReminder}>
             <div className={css.reminderItem}>
               <div className={css.reminderInfo}>
                 <div className={css.reminderLabel}>{t('panel.aiCompleteToastTitle')}</div>
                 <div className={css.reminderHint}>{t('panel.aiCompleteToastHint')}</div>
               </div>
               <Toggle
+                ariaLabel={t('panel.aiCompleteToastTitle')}
                 checked={settings.aiCompleteToastEnabled}
                 onChange={(enabled) => {
                   settingsStore.set({ aiCompleteToastEnabled: enabled })
@@ -563,6 +582,7 @@ function TimelineTab({ t, reminderSeq = 0 }: { readonly t: T; readonly reminderS
                 <div className={css.reminderHint}>{t('panel.aiCompleteSoundHint')}</div>
               </div>
               <Toggle
+                ariaLabel={t('panel.aiCompleteSoundTitle')}
                 checked={settings.aiCompleteSoundEnabled}
                 onChange={(enabled) => {
                   // 开启时预览音效（原 playAICompleteSoundPreview）。

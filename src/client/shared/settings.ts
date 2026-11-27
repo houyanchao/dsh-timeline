@@ -85,30 +85,67 @@ const DEFAULTS: PluginSettings = {
   formulaFormat: 'none',
 }
 
-const STORAGE_KEY = 'dsh.timeline.settings'
+export const SETTINGS_KEY = 'dsh.timeline.settings'
+export const REMINDER_FIELDS = ['aiCompleteToastEnabled', 'aiCompleteSoundEnabled'] as const
 
-function load(): PluginSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw !== null) {
-      const parsed = JSON.parse(raw) as Partial<PluginSettings>
-      return { ...DEFAULTS, ...parsed }
-    }
-  } catch { /* 损坏数据回退默认 */ }
-  return DEFAULTS
+// Keep failed writes in this tab, even when another tab subsequently triggers a reload.
+const unsavedReminders: Partial<Record<typeof REMINDER_FIELDS[number], boolean>> = {}
+let unsavedSettings: Partial<PluginSettings> = {}
+
+function readBase(): Partial<PluginSettings> {
+  const raw = localStorage.getItem(SETTINGS_KEY)
+  if (raw !== null) {
+    try { return JSON.parse(raw) ?? {} } catch { /* Ignore damaged settings. */ }
+  }
+  return {}
 }
 
-const bus = new Bus<PluginSettings>(load())
+function load(): PluginSettings {
+  const result = { ...DEFAULTS, ...readBase(), ...unsavedSettings }
+  for (const field of REMINDER_FIELDS) {
+    const stored = localStorage.getItem(`${SETTINGS_KEY}.${field}`)
+    const legacy = typeof result[field] === 'boolean' ? result[field] : DEFAULTS[field]
+    const enabled = stored === 'true' || stored === 'false' ? stored === 'true' : legacy
+    result[field] = unsavedReminders[field] ?? enabled
+  }
+  return result
+}
 
-registerStorageSync(STORAGE_KEY, () => { bus.set(load()) })
+const bus = new Bus<PluginSettings>(DEFAULTS)
+
+function reload(fallback = bus.get()): void {
+  let next: PluginSettings
+  try { next = load() } catch { next = fallback }
+  bus.set(next)
+}
+
+reload()
+registerStorageSync(SETTINGS_KEY, reload)
+for (const field of REMINDER_FIELDS) registerStorageSync(`${SETTINGS_KEY}.${field}`, reload)
 
 /** 插件设置 API。 */
 export const settingsStore = {
   subscribe: bus.subscribe,
   get: (): PluginSettings => bus.get(),
   set(patch: Partial<PluginSettings>): void {
-    const next = { ...bus.get(), ...patch }
-    bus.set(next)
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* 忽略 */ }
+    const ordinary = { ...patch }
+    // A reminder toggle never writes the other tab's toggle or a stale settings snapshot.
+    for (const field of REMINDER_FIELDS) {
+      delete ordinary[field]
+      const enabled = patch[field]
+      if (typeof enabled !== 'boolean') continue
+      try {
+        localStorage.setItem(`${SETTINGS_KEY}.${field}`, String(enabled))
+        delete unsavedReminders[field]
+      } catch { unsavedReminders[field] = enabled }
+    }
+    if (Object.keys(ordinary).length > 0) {
+      unsavedSettings = { ...unsavedSettings, ...ordinary }
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...readBase(), ...unsavedSettings }))
+        unsavedSettings = {}
+      } catch { /* Apply the patch in memory while storage is unavailable. */ }
+    }
+    reload({ ...bus.get(), ...patch })
   },
 }

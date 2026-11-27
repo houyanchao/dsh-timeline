@@ -11,7 +11,7 @@ import { detectDarkTheme, observeTheme } from '../shared/theme.ts'
 import { settingsStore } from '../shared/settings.ts'
 import { tooltip } from '../ui/tooltip.tsx'
 import { ACTIVE_COLOR_PALETTE, paletteEntryToCss } from '../shared/palette.ts'
-import { playAiCompleteSound, removeAiCompleteAnchor, showAiCompleteToast, stopAiCompleteSound } from '../shared/aiCompleteReminder.ts'
+import { removeAiCompleteAnchor, stopAiCompleteSound } from '../shared/aiCompleteReminder.ts'
 import { LAYOUT } from './engine.ts'
 import type { StarRecord } from './store.ts'
 import { TimelineBar, type TimelineItem } from './TimelineBar.tsx'
@@ -27,7 +27,7 @@ export interface TimelineRootProps {
   readonly starred: Record<string, StarRecord>
   /** 已标记图钉的节点 key 集合。 */
   readonly pinned: ReadonlySet<string>
-  /** AI 是否正在生成（完成提醒的触发信号）。 */
+  /** AI 是否正在生成，用于时间轴节点的显示。 */
   readonly running: boolean
   readonly collapsed: boolean
   readonly navigateToItem: (key: string) => Promise<boolean>
@@ -233,33 +233,6 @@ export function TimelineRoot({ scope, items, starred, pinned, running, collapsed
   useEffect(() => {
     if (!settings.notepadEnabled && notepad.isOpen()) notepad.close()
   }, [settings.notepadEnabled])
-
-  // AI 回复完成提醒（原 onAIStateChange → scheduleAICompleteToastCheck）：
-  // 生成结束 200ms 后，若用户停留在非最后节点，弹右上角胶囊 toast / 播放提示音。
-  const prevRunningRef = useRef(running)
-  useEffect(() => {
-    const wasRunning = prevRunningRef.current
-    prevRunningRef.current = running
-    if (!wasRunning || running) return
-
-    const timer = setTimeout(() => {
-      const current = settingsStore.get()
-      if (!current.aiCompleteToastEnabled && !current.aiCompleteSoundEnabled) return
-      const list = itemsRef.current
-      if (list.length <= 1) return
-      const activeId = activeKeyRef.current
-      const activeIndex = activeId !== null ? list.findIndex(item => item.key === activeId) : -1
-      // 停留在最后节点说明用户正在看最新回复，不打扰；
-      // 无激活节点（-1）时原版会提醒，保持一致。
-      if (activeIndex >= list.length - 1) return
-
-      if (current.aiCompleteToastEnabled) {
-        showAiCompleteToast(t('timeline.aiCompleteToast'))
-      }
-      if (current.aiCompleteSoundEnabled) playAiCompleteSound()
-    }, 200)
-    return () => { clearTimeout(timer) }
-  }, [running, t])
 
   // 卸载时移除完成提醒锚点并停止提示音（原 destroy 分支：removeAnchor + aiCompleteAudio.pause）。
   useEffect(() => () => {

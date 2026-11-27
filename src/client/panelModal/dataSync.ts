@@ -9,6 +9,8 @@
  * 自有前缀的 key（localStorage 与宿主共享，不能整库 clear）。
  */
 
+import { REMINDER_FIELDS, SETTINGS_KEY } from '../shared/settings.ts'
+
 /** 备份文件元数据（原 _buildMeta）。 */
 interface BackupMeta {
   readonly source: string
@@ -35,7 +37,6 @@ const KEY_PREFIXES = ['dsh.timeline.'] as const
 const STARRED_KEY = 'dsh.timeline.starred'
 const PINS_KEY = 'dsh.timeline.pins'
 const PROMPTS_KEY = 'dsh.timeline.prompts'
-const SETTINGS_KEY = 'dsh.timeline.settings'
 
 /** 是否插件自有 key。 */
 function isPluginKey(key: string): boolean {
@@ -64,6 +65,14 @@ export function getAllStorageData(): Record<string, unknown> {
     if (key === null || !isPluginKey(key)) continue
     const raw = localStorage.getItem(key)
     if (raw !== null) data[key] = parseValue(raw)
+  }
+  // Keep the original single settings object in backup files, including current reminder values.
+  for (const field of REMINDER_FIELDS) {
+    const key = `${SETTINGS_KEY}.${field}`
+    if (typeof data[key] === 'boolean') {
+      data[SETTINGS_KEY] = mergeObject(data[SETTINGS_KEY], { [field]: data[key] })
+    }
+    delete data[key]
   }
   return data
 }
@@ -219,5 +228,12 @@ export function mergeData(newData: Record<string, unknown>): void {
     // 本地不存在，直接使用新值；否则按 key 类型合并。
     const merged = existingValue === undefined ? newValue : mergeByKey(key, existingValue, newValue)
     localStorage.setItem(key, serializeValue(merged))
+    if (key === SETTINGS_KEY && newValue !== null && typeof newValue === 'object') {
+      // An imported legacy preference takes precedence over an existing per-field value.
+      for (const field of REMINDER_FIELDS) {
+        const enabled = (newValue as Record<string, unknown>)[field]
+        if (typeof enabled === 'boolean') localStorage.setItem(`${SETTINGS_KEY}.${field}`, String(enabled))
+      }
+    }
   }
 }

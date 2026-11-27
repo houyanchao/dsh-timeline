@@ -97,7 +97,9 @@ export function apply(ctx: ClientContext): void {
       order: 40,
       locale: NS,
       store: createTimelineStore,
-      inject: () => ({
+      inject: sessionId => ({
+        completionEvents: ctx.sessions.binding(sessionId)?.eventSource,
+        completionChat: ctx.uiConversation.binding(sessionId).target('chat'),
         loadSavedQuestion: async (sessionId: string, key: string, signal: AbortSignal) => {
           const id = sessionId as SessionId
           const session = ctx.sessions.binding(id)?.session
