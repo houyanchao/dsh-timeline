@@ -1,14 +1,17 @@
 interface Span { start: number; end: number }
 interface CodeSpan extends Span { text: string }
+interface FencedCodeSpan extends Span { contentStart: number; contentEnd: number; quoteDepth: number; info: string }
 interface MarkdownImage extends Span { src: string; alt: string }
 
-export function replaceMarkdownTokens<T extends Span>(source: string, tokens: readonly T[], render: (token: T) => string): string {
+export function replaceMarkdownTokens<T extends Span>(
+  source: string, tokens: readonly T[], render: (token: T) => string, renderText = (text: string) => text,
+): string {
   let result = '', last = 0
   for (const token of tokens) {
-    result += source.slice(last, token.start) + render(token)
+    result += renderText(source.slice(last, token.start)) + render(token)
     last = token.end
   }
-  return result + source.slice(last)
+  return result + renderText(source.slice(last))
 }
 
 /** 反引号数量必须匹配，避免多反引号代码示例被拆成普通正文。 */
@@ -34,26 +37,58 @@ export function inlineCodeSpans(source: string): CodeSpan[] {
   return spans
 }
 
-export function fencedCodeSpans(source: string): Span[] {
-  const spans: Span[] = []
-  let fence: { start: number; marker: string } | undefined
+/** Keep code opaque across formatting that can span a literal, such as a link label. */
+export function markdownLiterals() {
+  const values: string[] = []
+  const protect = (text: string): string => `\u0000${values.push(text) - 1}\u0000`
+  return {
+    protect,
+    protectInline: (source: string): string => replaceMarkdownTokens(source, inlineCodeSpans(source),
+      code => protect(code.text), prose => prose.replaceAll('\u0000', () => protect('\u0000'))),
+    restore: (text: string): string => text.replace(/\u0000(\d+)\u0000/g, (_, index: string) => values[Number(index)]),
+  }
+}
+
+export function fencedCodeSpans(source: string): FencedCodeSpan[] {
+  const spans: FencedCodeSpan[] = []
+  let fence: { start: number; marker: string; contentStart: number; quoteDepth: number; info: string } | undefined
   let start = 0
   for (const line of source.split('\n')) {
+    if (start === source.length) break
     const end = Math.min(start + line.length + 1, source.length)
-    const match = line.replace(/^(?: {0,3}>[ \t]?)+/, '').match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+    const quotes = line.match(/^(?: {0,3}>[ \t]?)+/)?.[0] ?? ''
+    const quoteDepth = quotes.split('>').length - 1
+    const match = line.slice(quotes.length).replace(/\r$/, '').match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+    const lineBreak = source[start - 2] === '\r' ? 2 : 1
+    if (fence !== undefined && quoteDepth < fence.quoteDepth) {
+      // A block quote ending also closes its code block. This line belongs to the outer block.
+      spans.push({ ...fence, end: start, contentEnd: Math.max(fence.contentStart, start - lineBreak) })
+      fence = undefined
+    }
     if (match !== null) {
       const [, marker, rest] = match
       if (fence === undefined) {
-        fence = { start, marker }
-      } else if (marker[0] === fence.marker[0] && marker.length >= fence.marker.length && rest.trim() === '') {
-        spans.push({ start: fence.start, end })
+        // Backticks in a backtick fence's info string disqualify it (e.g. a line of inline code).
+        if (marker[0] !== '`' || !rest.includes('`')) {
+          fence = { start, marker, contentStart: end, quoteDepth, info: rest.trim() }
+        }
+      } else if (quoteDepth === fence.quoteDepth && marker[0] === fence.marker[0]
+        && marker.length >= fence.marker.length && rest.trim() === '') {
+        spans.push({ ...fence, end, contentEnd: Math.max(fence.contentStart, start - lineBreak) })
         fence = undefined
       }
     }
     start = end
   }
-  if (fence !== undefined) spans.push({ start: fence.start, end: source.length })
+  if (fence !== undefined) spans.push({ ...fence, end: source.length, contentEnd: source.length })
   return spans
+}
+
+export function fencedCodeText(source: string, fence: FencedCodeSpan): string {
+  const body = source.slice(fence.contentStart, fence.contentEnd)
+  if (fence.quoteDepth === 0) return body
+  const quotePrefix = new RegExp(`^(?: {0,3}>[ \\t]?){1,${fence.quoteDepth}}`, 'gm')
+  return body.replace(quotePrefix, '')
 }
 
 function maskMarkdownCode(markdown: string): string {

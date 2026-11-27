@@ -93,7 +93,7 @@ export function buildMarkdown(job: ExportJob, texts: CeTexts): string {
     lines.push('---')
   }
 
-  return `${lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()}\n`
+  return `${lines.join('\n')}\n`
 }
 
 /** TXT 导出（原 buildTxt）。 */
@@ -111,9 +111,9 @@ export function buildTxt(job: ExportJob, texts: CeTexts): string {
       const txtAskTime = options.showConversationTime ? ceFormatChatTime(turn.user.time) : ''
       lines.push(txtAskTime !== '' ? `${texts.exportRoleUser}（${txtAskTime}）：` : `${texts.exportRoleUser}：`)
       lines.push(turn.user.text !== '' ? turn.user.text : texts.emptyUserPreview)
-      lines.push('')
     }
     if (!turn.omitAssistant) {
+      if (!turn.omitUser) lines.push('')
       lines.push(`${texts.exportRoleAssistant}：`)
       if (turn.assistant.text !== '') {
         lines.push(turn.assistant.text)
@@ -136,7 +136,7 @@ export function buildTxt(job: ExportJob, texts: CeTexts): string {
     lines.push('-'.repeat(40))
   }
 
-  return `${lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()}\n`
+  return `${lines.join('\n')}\n`
 }
 
 function serializeImage(image: ExportImage): Record<string, unknown> {

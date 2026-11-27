@@ -6,7 +6,7 @@
  */
 import type { ChatNodeStore } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ExportImage, ExportTurn } from './constants.ts'
-import { fencedCodeSpans, inlineCodeSpans, splitTableRow } from './markdown.ts'
+import { fencedCodeSpans, fencedCodeText, inlineCodeSpans, markdownLiterals, replaceMarkdownTokens, splitTableRow } from './markdown.ts'
 
 /** 一次 readAttachment 解析结果的最小形态。 */
 export interface ResolvedAttachment {
@@ -78,6 +78,15 @@ function userBlockText(block: unknown): string {
   return typeof b === 'object' && b !== null && b.type === 'text' && typeof b.text === 'string' ? b.text : ''
 }
 
+function trimMessageEdges(markdown: string): string {
+  const trimmed = markdown.trimEnd()
+  // A reply can end inside an unfinished fence, where trailing whitespace is part of the code.
+  if (trimmed.length < markdown.length && fencedCodeSpans(markdown).at(-1)?.contentEnd === markdown.length) {
+    return markdown.trimStart()
+  }
+  return trimmed.trimStart()
+}
+
 /**
  * 从会话快照采集全部轮次（原 collectAllTurns 的 DSH 等价实现）。
  * @param order - chat.order 节点键序。
@@ -105,7 +114,7 @@ export async function collectAllTurns(
       const data = node.data as UserLikeData
       const includeUser = includes(key)
       const content = includeUser ? (data.content ?? []) : []
-      const text = content.map(userBlockText).filter(t => t !== '').join('\n\n').trim()
+      const text = trimMessageEdges(content.map(userBlockText).filter(t => t !== '').join('\n\n'))
       current = {
         userKey: key,
         includeUser,
@@ -239,11 +248,8 @@ export async function collectAllTurns(
 
   const turns: ExportTurn[] = []
   for (const m of mutables) {
-    // 过滤过小的装饰图（原 CE_MIN_IMAGE_SIZE：任一边 <48 且尺寸已知时跳过）。
-    const userImages = m.userImages.filter(img => !isDecorativeImage(img))
-    const assistantImages = m.assistantImages.filter(img => !isDecorativeImage(img))
-    revokeImageUrls([...m.userImages, ...m.assistantImages].filter(isDecorativeImage))
-    const markdown = normalizeMathDelimiters(m.assistantParts.join('\n\n')).trim()
+    const { userImages, assistantImages } = m
+    const markdown = trimMessageEdges(normalizeMathDelimiters(m.assistantParts.join('\n\n')))
     const text = markdownToPlainText(markdown)
     // 全空轮丢弃（原 extractTurn：文本与图片四者全空时返回 null），序号保持连续。
     if (m.userText === '' && userImages.length === 0 && markdown === '' && assistantImages.length === 0) continue
@@ -270,15 +276,6 @@ export function releaseExportImages(turns: readonly ExportTurn[]): void {
   for (const turn of turns) revokeImageUrls([...turn.user.images, ...turn.assistant.images])
 }
 
-/** 过小的装饰图判定（原 _extractImageInfo：尺寸未知时保留）。 */
-const MIN_IMAGE_SIZE = 48
-
-function isDecorativeImage(img: ExportImage): boolean {
-  const width = img.width ?? 0
-  const height = img.height ?? 0
-  return width > 0 && height > 0 && (width < MIN_IMAGE_SIZE || height < MIN_IMAGE_SIZE)
-}
-
 /**
  * 公式定界符归一化：\[...\] 与 $$...$$ 统一为独占行的 $$ 围栏，\(...\) → $...$。
  * DeepSeek 回复与 dsh 渲染层同时支持 $ 系与 TeX 系定界符，而下游导出器
@@ -289,24 +286,10 @@ export function normalizeMathDelimiters(markdown: string): string {
     .replace(/\\\[([\s\S]*?)\\\]/g, (_, tex: string) => `\n\n$$\n${tex.trim()}\n$$\n\n`)
     .replace(/\$\$([\s\S]+?)\$\$/g, (_, tex: string) => `\n\n$$\n${tex.trim()}\n$$\n\n`)
     .replace(/\\\((.*?)\\\)/g, (_, tex: string) => `$${tex.trim()}$`)
-  const normalizeText = (segment: string): string => {
-    let cursor = 0
-    const parts: string[] = []
-    for (const code of inlineCodeSpans(segment)) {
-      parts.push(normalize(segment.slice(cursor, code.start)), segment.slice(code.start, code.end))
-      cursor = code.end
-    }
-    parts.push(normalize(segment.slice(cursor)))
-    return parts.join('')
-  }
-  let cursor = 0
-  const parts: string[] = []
-  for (const fence of fencedCodeSpans(markdown)) {
-    parts.push(normalizeText(markdown.slice(cursor, fence.start)), markdown.slice(fence.start, fence.end))
-    cursor = fence.end
-  }
-  parts.push(normalizeText(markdown.slice(cursor)))
-  return parts.join('')
+  const normalizeText = (segment: string): string => replaceMarkdownTokens(segment, inlineCodeSpans(segment),
+    code => segment.slice(code.start, code.end), normalize)
+  return replaceMarkdownTokens(markdown, fencedCodeSpans(markdown),
+    fence => markdown.slice(fence.start, fence.end), normalizeText)
 }
 
 /**
@@ -315,9 +298,11 @@ export function normalizeMathDelimiters(markdown: string): string {
  * 分隔线、标题、图片/链接、行内标记、引用、列表符号）。
  */
 export function markdownToPlainText(markdown: string): string {
-  const withoutBlocks = markdown
-    // 代码围栏（未闭合的也剥离，保留代码内容）
-    .replace(/```[^\n]*\n([\s\S]*?)(?:```|$)/g, '$1')
+  // Keep literal code opaque while formatting its surrounding paragraphs, tables and links.
+  const { protect, protectInline, restore } = markdownLiterals()
+  const protectedMarkdown = replaceMarkdownTokens(markdown, fencedCodeSpans(markdown), fence =>
+    protect(fencedCodeText(markdown, fence)) + (fence.end < markdown.length ? '\n' : ''), protectInline)
+  const withoutBlocks = protectedMarkdown
     // 公式定界符：$$...$$、$...$、\[...\]、\(...\)，保留内部内容
     .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
     .replace(/\$([^$\n]+?)\$/g, '$1')
@@ -334,17 +319,16 @@ export function markdownToPlainText(markdown: string): string {
     return [line]
   }).join('\n')
 
-  return withoutTables
+  return restore(withoutTables
     .replace(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/gm, '')
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/__([^_]+)__/g, '$1')
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/^\s*>\s?/gm, '')
     .replace(/^(\s*)[-*+]\s+/gm, '$1- ')
     .replace(/\n{3,}/g, '\n\n')
-    .trim()
+    .trim())
 }

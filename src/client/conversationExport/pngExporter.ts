@@ -9,7 +9,7 @@
  * - 超长对话：超过画布上限时截断并提示
  */
 import temml from 'temml'
-import { markdownImages, replaceMarkdownTokens, safeImageSource, splitTableRow } from './markdown.ts'
+import { fencedCodeSpans, fencedCodeText, markdownImages, markdownLiterals, replaceMarkdownTokens, safeImageSource, splitTableRow } from './markdown.ts'
 import {
   CE_MAX_CANVAS_HEIGHT, ceFormatChatTime, ceFormatLocalTime, ceGetTheme,
   type CeTexts, type ExportJob, type ExportImage, type ExportTheme,
@@ -513,19 +513,16 @@ export class CEPngExporter {
   /** 含内联公式的文本切分为 token（原 _tokenizeInline）。 */
   private tokenizeInline(rawText: string): InlineToken[] {
     const tokens: InlineToken[] = []
-    const re = /\$([^$\n]+?)\$/g
-    let last = 0
-    let m: RegExpExecArray | null
-    while ((m = re.exec(rawText)) !== null) {
-      if (m.index > last) {
-        tokens.push({ type: 'text', text: this.cleanInline(rawText.slice(last, m.index)) })
-      }
-      tokens.push({ type: 'formula', latex: m[1].trim() })
-      last = re.lastIndex
+    const literals = markdownLiterals()
+    const prose = literals.protectInline(rawText)
+    const plain = (text: string): string => literals.restore(this.cleanInline(text))
+    let start = 0
+    for (const match of prose.matchAll(/\$([^$\n\u0000]+?)\$/g)) {
+      if (match.index > start) tokens.push({ type: 'text', text: plain(prose.slice(start, match.index)) })
+      tokens.push({ type: 'formula', latex: match[1].trim() })
+      start = match.index + match[0].length
     }
-    if (last < rawText.length) {
-      tokens.push({ type: 'text', text: this.cleanInline(rawText.slice(last)) })
-    }
+    if (start < prose.length) tokens.push({ type: 'text', text: plain(prose.slice(start)) })
     return tokens
   }
 
@@ -799,8 +796,18 @@ export class CEPngExporter {
 
   parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
     const blocks: MarkdownBlock[] = []
-    if (markdown === '') return blocks
+    let start = 0
+    for (const fence of fencedCodeSpans(markdown)) {
+      this.appendTextBlocks(blocks, markdown.slice(start, fence.start))
+      blocks.push({ kind: 'code', lang: fence.info, code: fencedCodeText(markdown, fence) })
+      start = fence.end
+    }
+    this.appendTextBlocks(blocks, markdown.slice(start))
+    return blocks
+  }
 
+  private appendTextBlocks(blocks: MarkdownBlock[], markdown: string): void {
+    if (markdown === '') return
     const lines = markdown.split('\n')
     let i = 0
     let paragraph: string[] = []
@@ -817,22 +824,6 @@ export class CEPngExporter {
     while (i < lines.length) {
       const line = lines[i]
       const trimmed = line.trim()
-
-      // 代码块
-      const fence = /^```(.*)$/.exec(trimmed)
-      if (fence !== null) {
-        flushParagraph()
-        const lang = fence[1].trim()
-        const codeLines: string[] = []
-        i++
-        while (i < lines.length && !lines[i].trim().startsWith('```')) {
-          codeLines.push(lines[i])
-          i++
-        }
-        i++ // 跳过结束 fence
-        blocks.push({ kind: 'code', lang, code: codeLines.join('\n') })
-        continue
-      }
 
       // 独立公式块：$$ 独占一行作为起止围栏
       if (trimmed === '$$') {
@@ -918,7 +909,6 @@ export class CEPngExporter {
     }
 
     flushParagraph()
-    return blocks
   }
 
   /** 去除 markdown 内联标记（原 _cleanInline）。 */
@@ -926,7 +916,6 @@ export class CEPngExporter {
     return text
       .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .replace(/`([^`]+)`/g, '$1')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
       .replace(/__([^_]+)__/g, '$1')
       .replace(/\*([^*]+)\*/g, '$1')
