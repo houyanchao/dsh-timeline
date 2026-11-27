@@ -1,0 +1,10 @@
+diff --git a/data/plugins/houyanchao__dsh-timeline.yml b/data/plugins/houyanchao__dsh-timeline.yml
+index 0390935..3ea3441 100644
+--- a/data/plugins/houyanchao__dsh-timeline.yml
++++ b/data/plugins/houyanchao__dsh-timeline.yml
+@@ -3,4 +3,4 @@ name: houyanchao/dsh-timeline
+ category: ui
+ description:
+   en: 'DSH productivity plugin: timeline navigation, prompt library, conversation export, quick notes, and more.'
+-  zh: 'DSH 效率插件：时间轴、提示词库、导出对话、闪记等提效功能。'
++  zh: 'DSH 提效插件：时间轴导航、收藏文件夹、提示词库、对话导出、公式复制、截图。'
