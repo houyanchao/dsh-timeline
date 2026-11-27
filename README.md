@@ -56,9 +56,6 @@ dsh-timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/dee
 dsh plugin --profile web add dsh-timeline
 ```
 
-> [!TIP]
-> 遇到 `command not found: dsh`？说明你是通过源码方式运行 DSH、没有安装全局 CLI。此时请在 DSH 源码仓库根目录下执行上述命令，并把开头的 `dsh` 换成 `pnpm dsh`，例如 `pnpm dsh plugin --profile web add dsh-timeline`。
-
 ## ⭐ 支持一下
 
 如果 dsh-timeline 帮到了你，欢迎分享给朋友们，并在 GitHub 给个 Star，帮助更多人发现它！
