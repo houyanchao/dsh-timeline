@@ -19,7 +19,7 @@ Timeline navigation · Starred folders · Prompt library · Conversation export 
 
 ## 📖 What is dsh-timeline?
 
-dsh-timeline is a feature-enhancement plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/).
+dsh-timeline is a productivity plugin for [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/).
 
 Once an AI conversation gets long, finding things becomes a chore: revisiting a question means endless scrolling, key takeaways get scattered across sessions, and formulas or content are hard to take with you. dsh-timeline was built for exactly this — it renders a visual timeline beside the conversation so you can jump anywhere in one click, and rounds out the workflow with starred folders, pin markers, quick notes, a prompt library, and multi-format export: find it, note it, organize it, take it with you.
 
@@ -43,28 +43,22 @@ The plugin blends right into the host UI: it follows the light / dark theme in r
 
 ## 📦 Installation
 
-Install from npm (recommended):
+### Method 1 (desktop client)
+
+In the [DeepSeek Harness](https://www.deepseek.com/harness/) client, open **Plugins → Add plugin**, enter `dsh-timeline`, then click **Install**.
+
+![The Plugins page, Add plugin button, and package name field in the DeepSeek Harness client](./docs/install-client.png)
+
+### Method 2 (install from npm with the CLI)
 
 ```bash
-# install the dsh-timeline plugin
+# Install dsh-timeline
 dsh plugin --profile web add dsh-timeline
-
-# launch DeepSeek Harness
-dsh web
 ```
-
-Upgrade:
-
-```bash
-dsh plugin --profile web update dsh-timeline
-```
-
-> [!TIP]
-> Seeing `command not found: dsh`? You are running DSH from a source checkout without the global CLI. Run the commands above from the root of the DSH source repository, replacing the leading `dsh` with `pnpm dsh` — e.g. `pnpm dsh plugin --profile web add dsh-timeline`.
 
 ## ⭐ Support
 
-If dsh-timeline helped you, share it with your friends — and a GitHub Star helps more people discover it!
+If dsh-timeline is useful to you, give it a 🌟 to help others discover it!
 
 ## 📄 License
 
