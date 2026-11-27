@@ -1,6 +1,6 @@
 {
   "name": "dsh-timeline",
-  "description": "DSH插件：时间轴导航 · 文件夹收藏 · 提示词库 · 对话导出 · 公式复制 · 对话截图",
+  "description": "提效插件：时间轴导航、收藏文件夹、提示词库、对话导出、公式复制、截图。",
   "version": "0.1.15",
   "keywords": [
     "dsh",
@@ -31,7 +31,8 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "dsh": {
     "bundle": {
@@ -98,6 +99,7 @@
     "unrun": "^0.2.39"
   },
   "files": [
+    "locale/*.json",
     "lib/index.js",
     "lib/client.js",
     "lib/client.js.map",
