@@ -19,7 +19,7 @@
 
 ## 📖 dsh-timeline 是什么？
 
-dsh-timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) 功能增强插件。
+dsh-timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) 提效插件。
 
 和 AI 的对话一长，翻找就成了负担：想回看某个提问要一路滚动，重要结论散落在各个会话里，公式、内容也不好带走。dsh-timeline 为此而生——它在会话右侧生成一条可视化时间轴，让你在长对话中一键跳转；并配套收藏文件夹、图钉标记、闪记、提示词库、多格式导出等能力，把"找、记、整理、带走"这一整套体验补齐。
 
@@ -43,20 +43,17 @@ dsh-timeline 是一款 [DeepSeek Harness](https://deepseek-harness.github.io/dee
 
 ## 📦 安装
 
-从 npm 安装（推荐）：
+### 安装方式 1（客户端）
+
+在 [DeepSeek Harness](https://www.deepseek.com/harness/) 客户端中搜索 `dsh-timeline` 进行安装。
+
+![在 DeepSeek Harness 客户端点击「插件」→「添加插件」，输入 dsh-timeline 后点击「安装」](./docs/install-client.png)
+
+### 安装方式 2（通过命令行从 npm 安装）
 
 ```bash
 # 安装 dsh-timeline 插件
 dsh plugin --profile web add dsh-timeline
-
-# 启动 DeepSeek Harness
-dsh web
-```
-
-升级：
-
-```bash
-dsh plugin --profile web update dsh-timeline
 ```
 
 > [!TIP]
