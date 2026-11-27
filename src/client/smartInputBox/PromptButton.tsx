@@ -1,9 +1,6 @@
 /**
  * 提示词按钮 + 下拉面板：移植原 PromptButtonManager + prompt-dropdown-ui。
- * 按钮坐在 DSH composer 工具行、紧挨宿主「命令」按钮右侧：
- * conversation.input.left 槽位只渲染在常驻控件之后，宿主没有命令与权限
- * 之间的槽位，故挂槽位借生命周期，本体 portal 到手动插在命令按钮后的容器
- * （useCommandSideSeat）。
+ * 按钮通过 conversation.input.left 读取当前输入框状态，浮在输入框卡片左侧。
  * 点击弹出固定尺寸（320x400）向上展开的下拉：提示词 Tab（搜索/列表/空态）
  * + 常用设置 Tab（反馈、GitHub Star、AI 完成提醒、阻止跳底开关、换行发送设置）。
  * 点提示词把内容追加进输入框草稿（原 _defaultInsertText 的 textarea 分支）。
@@ -50,9 +47,6 @@ function appendPromptText(existingText: string, text: string): string {
   return `${cleanedText}\n\n${text}\n\n`
 }
 
-/** 宿主「命令」按钮（工具行里唯一的 listbox 弹出按钮，InputBar 的 .add）。 */
-const COMMAND_BTN_SELECTOR = 'button[aria-haspopup="listbox"]'
-
 /**
  * 提示词库 tooltip 配色：单套固定形态，直接引宿主原生 tooltip 的 token
  * （ui-primitives Tooltip 的深色底板 + 恒白文字；边框取底色即隐形）。
@@ -63,50 +57,65 @@ const LIBRARY_TIP_COLOR = {
   borderColor: 'var(--dsw-alias-tooltip-bg)',
 } as const
 
-/**
- * 在【命令】按钮紧邻右侧造一个 portal 挂载座。
- * 容器 display: contents，提示词按钮直接成为工具行的 flex 项、
- * 吃行自己的 16px 间距；行卸载（会话切换）时本组件同月同灭，
- * 清理函数移除容器即可。
- * @param markerRef - 渲染在槽位里的隐藏锚点，向上定位工具行。
- * @param enabled - 按钮是否启用（关闭时锚点不渲染，需重建）。
- * @returns 挂载座；定位不到命令按钮时为 null（调用方就地渲染兜底）。
- */
-function useCommandSideSeat(markerRef: RefObject<HTMLElement | null>, enabled: boolean): HTMLElement | null {
-  const [seat, setSeat] = useState<HTMLElement | null>(null)
+interface ComposerPosition {
+  readonly top: number
+  readonly left: number
+}
+
+/** 通过槽位中的锚点跟踪当前输入框，避免多个会话共用页面时定位到别的卡片。 */
+function useComposerPosition(
+  markerRef: RefObject<HTMLSpanElement>,
+  buttonRef: RefObject<HTMLButtonElement>,
+  enabled: boolean,
+): ComposerPosition | null {
+  const [position, setPosition] = useState<ComposerPosition | null>(null)
 
   useLayoutEffect(() => {
-    if (!enabled) return
-    const marker = markerRef.current
-    if (marker === null) return
-
-    // 槽位条目外面有宿主的包装节点，从锚点向上找到包含命令按钮的工具行。
-    let tools: HTMLElement | null = marker.parentElement
-    while (tools !== null && tools.querySelector(COMMAND_BTN_SELECTOR) === null) {
-      tools = tools.parentElement
-    }
-    const commandBtn = tools?.querySelector(COMMAND_BTN_SELECTOR) ?? null
-    if (tools === null || commandBtn === null) return
-
-    // 命令按钮理论上可能被再包一层，锚定到工具行的直接子节点。
-    let anchorTop: Element = commandBtn
-    while (anchorTop.parentElement !== null && anchorTop.parentElement !== tools) {
-      anchorTop = anchorTop.parentElement
+    const card = markerRef.current?.closest('[data-composer-card]')
+    if (!enabled || !card) {
+      setPosition(null)
+      return
     }
 
-    const container = document.createElement('div')
-    container.style.display = 'contents'
-    tools.insertBefore(container, anchorTop.nextSibling)
-    setSeat(container)
+    let frame = 0
+    const measure = () => {
+      const rect = card.getBoundingClientRect()
+      const button = buttonRef.current
+      if (!button || !rect.width || !rect.height) {
+        setPosition(null)
+        return
+      }
+      const edge = 8
+      const top = Math.max(edge, Math.min(rect.top + 10, window.innerHeight - button.offsetHeight - edge))
+      const left = Math.max(edge, rect.left - 10 - button.offsetWidth)
+      setPosition(previous => previous?.top === top && previous.left === left ? previous : { top, left })
+    }
+    function schedule() {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        measure()
+      })
+    }
+
+    measure()
+    const observer = new ResizeObserver(schedule)
+    observer.observe(card)
+    const seat = card.closest('[data-composer-seat]')
+    if (seat) observer.observe(seat)
+    window.addEventListener('resize', schedule)
+    window.addEventListener('scroll', schedule, true)
+    document.addEventListener('transitionend', schedule)
     return () => {
-      container.remove()
-      setSeat(null)
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', schedule)
+      window.removeEventListener('scroll', schedule, true)
+      document.removeEventListener('transitionend', schedule)
     }
-    // markerRef 是稳定引用，不入依赖。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled])
+  }, [enabled, markerRef, buttonRef])
 
-  return seat
+  return position
 }
 
 /** 完整 props：输入工具行槽位运行时 + 词典。 */
@@ -139,7 +148,7 @@ export function PromptButton({ useInput, useSession, inputActions, t, openPlugin
   const draftRef = useRef(draft)
   draftRef.current = draft
 
-  const seat = useCommandSideSeat(markerRef, settings.promptButtonEnabled)
+  const position = useComposerPosition(markerRef, btnRef, settings.promptButtonEnabled)
 
   // 智能回车：随本组件（composer 存在期）挂载。
   useSmartEnter((mode) => {
@@ -207,13 +216,16 @@ export function PromptButton({ useInput, useSession, inputActions, t, openPlugin
 
   return (
     <>
-      {/* 隐藏锚点：只用来定位工具行（本体 portal 到命令按钮右侧的挂载座）。 */}
       <span ref={markerRef} hidden />
-      {seat !== null ? createPortal(button, seat) : button}
+      {position ? createPortal(
+        <div className={css.floatingRow} style={position}>{button}</div>,
+        document.body,
+      ) : button}
       {open
         ? (
           <PromptDropdown
             anchor={btnRef.current}
+            position={position}
             dark={dark}
             prompts={prompts}
             preventAutoScrollEnabled={settings.preventAutoScrollEnabled}
@@ -233,6 +245,7 @@ export function PromptButton({ useInput, useSession, inputActions, t, openPlugin
 
 interface PromptDropdownProps {
   readonly anchor: HTMLElement | null
+  readonly position: ComposerPosition | null
   readonly dark: boolean
   readonly prompts: readonly Prompt[]
   readonly preventAutoScrollEnabled: boolean
@@ -243,7 +256,7 @@ interface PromptDropdownProps {
 }
 
 /** 提示词下拉面板（原 createPromptDropdownUI，portal 到 body）。 */
-function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, openPluginVersions, onClose, onItemClick }: PromptDropdownProps) {
+function PromptDropdown({ anchor, position, dark, prompts, preventAutoScrollEnabled, t, openPluginVersions, onClose, onItemClick }: PromptDropdownProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<'prompts' | 'common-settings'>('prompts')
@@ -266,7 +279,7 @@ function PromptDropdown({ anchor, dark, prompts, preventAutoScrollEnabled, t, op
     el.style.height = `${DROPDOWN_HEIGHT}px`
     el.style.left = `${left}px`
     el.style.top = `${top}px`
-  }, [anchor])
+  }, [anchor, position])
 
   // 入场动画（原 requestAnimationFrame 加 visible 类）。
   useEffect(() => {

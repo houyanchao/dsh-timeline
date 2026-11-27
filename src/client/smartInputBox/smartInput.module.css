@@ -3,9 +3,12 @@
    （移植原 prompt-button.css + panelModal/tabs/prompt/styles.css 下拉部分）
    ============================================ */
 
-/* ==== 提示词按钮（原 .smart-input-prompt-btn）。
-   坐在 composer 工具行，与宿主「命令」按钮（InputBar.module.css 的 .add）同款：
-   28px 圆形、宿主 token 配色，深浅主题由 token 自身切换，不再自带调色板 ==== */
+.floatingRow {
+  position: fixed;
+  z-index: 9;
+}
+
+/* 28px 圆形按钮，与宿主工具栏共用主题配色。 */
 .promptBtn {
   position: relative;
   display: grid;
