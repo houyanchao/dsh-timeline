@@ -58,7 +58,7 @@ dsh plugin --profile web add dsh-timeline
 
 ## ⭐ 支持一下
 
-如果 dsh-timeline 帮到了你，欢迎分享给朋友们，并在 GitHub 给个 Star，帮助更多人发现它！
+如果 dsh-timeline 好用，欢迎给个🌟，帮助更多人发现它！
 
 ## 📄 许可证
 
